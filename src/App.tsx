@@ -20,6 +20,7 @@ import { CoreUnitsPage } from './components/core/CoreUnitsPage';
 import { CoreLeasesPage } from './components/core/CoreLeasesPage';
 import { CoreResidentsPage } from './components/core/CoreResidentsPage';
 import { CoreSetupWizard } from './components/core/CoreSetupWizard';
+import { CoreFinancialPage } from './components/core/CoreFinancialPage';
 import { MainContent } from './components/MainContent';
 import { Loader2 } from 'lucide-react';
 
@@ -68,35 +69,39 @@ function LoginPage() {
   return <Navigate to="/core/dashboard" replace />;
 }
 
-// Legacy dashboard redirect - sends users to Core PMS
-function LegacyDashboardRedirect() {
+// Legacy dashboard - accessible by all roles
+function LegacyDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
 
+  console.log('[LegacyDashboardPage] State:', { user: user?.id, authLoading, profile: profile?.role, profileLoading });
+
   if (authLoading) {
+    console.log('[LegacyDashboardPage] Auth loading');
     return <LoadingSpinner />;
   }
 
   if (!user) {
+    console.log('[LegacyDashboardPage] No user, redirecting to login');
     return <Navigate to="/login" replace />;
   }
 
   if (profileLoading || !profile) {
+    console.log('[LegacyDashboardPage] Profile loading');
     return <LoadingSpinner />;
   }
 
-  // Redirect based on role
-  if (profile.role === 'owner_readonly') {
-    return <Navigate to="/owner/dashboard" replace />;
-  }
-
-  return <Navigate to="/core/dashboard" replace />;
+  console.log('[LegacyDashboardPage] Rendering legacy dashboard');
+  // Allow access to legacy dashboard for all users
+  return <MainContent />;
 }
 
-// Owner dashboard - only for owner_readonly role
-function OwnerDashboardPage() {
+// Owner readonly dashboard - only for owner_readonly role
+function OwnerReadOnlyDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
+
+  console.log('[OwnerReadOnlyDashboardPage] State:', { user: user?.id, authLoading, profile: profile?.role, profileLoading });
 
   if (authLoading) {
     return <LoadingSpinner />;
@@ -112,9 +117,11 @@ function OwnerDashboardPage() {
 
   // Only owner_readonly can access this page
   if (profile.role !== 'owner_readonly') {
+    console.log('[OwnerReadOnlyDashboardPage] Not owner_readonly, redirecting to core');
     return <Navigate to="/core/dashboard" replace />;
   }
 
+  console.log('[OwnerReadOnlyDashboardPage] Rendering owner readonly dashboard');
   return <MainContent />;
 }
 
@@ -156,10 +163,11 @@ function CorePMSRoutes() {
       {/* Core PMS pages with layout */}
       <Route element={<CorePMSLayout />}>
         <Route path="dashboard" element={<CoreDashboard />} />
-        <Route path="properties" element={<CorePropertiesPage />} />
-        <Route path="units" element={<CoreUnitsPage />} />
-        <Route path="leases" element={<CoreLeasesPage />} />
-        <Route path="residents" element={<CoreResidentsPage />} />
+            <Route path="properties" element={<CorePropertiesPage />} />
+            <Route path="units" element={<CoreUnitsPage />} />
+            <Route path="leases" element={<CoreLeasesPage />} />
+            <Route path="residents" element={<CoreResidentsPage />} />
+            <Route path="financial" element={<CoreFinancialPage />} />
         <Route index element={<CoreDashboard />} />
       </Route>
     </Routes>
@@ -186,13 +194,13 @@ function App() {
             } 
           />
           
-          {/* Legacy dashboard - redirect to Core PMS */}
+          {/* Legacy dashboard - accessible by all users */}
           <Route 
             path="/dashboard" 
             element={
               <AuthProvider>
                 <ProfileProvider>
-                  <LegacyDashboardRedirect />
+                  <LegacyDashboardPage />
                 </ProfileProvider>
               </AuthProvider>
             } 
@@ -210,13 +218,13 @@ function App() {
             }
           />
           
-          {/* Owner dashboard - for owner_readonly role only */}
+          {/* Owner readonly dashboard - for owner_readonly role only */}
           <Route 
             path="/owner/dashboard"
             element={
               <AuthProvider>
                 <ProfileProvider>
-                  <OwnerDashboardPage />
+                  <OwnerReadOnlyDashboardPage />
                 </ProfileProvider>
               </AuthProvider>
             }

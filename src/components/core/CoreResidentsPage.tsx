@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Loader2, AlertCircle, FileText } from 'lucide-react';
+import { Users, Loader2, AlertCircle, FileText, DollarSign } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { LeaseDetailModal } from './LeaseDetailModal';
 
 interface Resident {
   id: string;
+  leaseId: string;
   full_name: string;
   email: string | null;
   phone: string | null;
   unit_code: string | null;
   lease_status: string | null;
-  balance_due: number;
+  balance: number; // Can be negative (owed) or positive (credit)
   category: string | null;
 }
 
@@ -25,6 +27,7 @@ export function CoreResidentsPage() {
   const [residents, setResidents] = useState<Resident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedLeaseId, setSelectedLeaseId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -139,14 +142,16 @@ export function CoreResidentsPage() {
 
         const formattedResidents: Resident[] = leaseData.map((lease: any) => {
           const resident = residentMap.get(lease.primary_resident_id);
+          const balance = Number(ledgerMap.get(lease.id)) || 0;
           return {
             id: resident?.id || lease.primary_resident_id,
+            leaseId: lease.id,
             full_name: resident?.full_name || 'Unknown',
             email: resident?.email || null,
             phone: resident?.phone || null,
             unit_code: unitMap.get(lease.unit_id) || null,
             lease_status: lease.status,
-            balance_due: Number(ledgerMap.get(lease.id)) || 0,
+            balance: balance, // Store original balance (negative = owed, positive = credit)
             category: insightMap.get(lease.id) || null
           };
         });
@@ -244,6 +249,7 @@ export function CoreResidentsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Balance Due</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -264,12 +270,16 @@ export function CoreResidentsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {resident.balance_due > 0 ? (
+                      {resident.balance < 0 ? (
                         <span className="text-red-600 dark:text-red-400">
-                          ${resident.balance_due.toLocaleString()}
+                          ${Math.abs(resident.balance).toLocaleString()}
+                        </span>
+                      ) : resident.balance > 0 ? (
+                        <span className="text-green-600 dark:text-green-400">
+                          ${resident.balance.toLocaleString()} (credit)
                         </span>
                       ) : (
-                        <span className="text-green-600 dark:text-green-400">$0</span>
+                        <span className="text-gray-600 dark:text-gray-400">$0</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -288,12 +298,45 @@ export function CoreResidentsPage() {
                       <div>{resident.email || '-'}</div>
                       <div className="text-xs">{resident.phone || '-'}</div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => setSelectedLeaseId(resident.leaseId)}
+                        className="inline-flex items-center gap-1 text-havyn-primary dark:text-emerald-400 hover:underline"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        View Ledger
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {/* Lease Detail Modal */}
+      {selectedLeaseId && (
+        <LeaseDetailModal
+          leaseId={selectedLeaseId}
+          onClose={() => {
+            setSelectedLeaseId(null);
+            // Refresh residents to get updated balances
+            if (propertyId) {
+              fetchResidents(propertyId);
+            } else if (properties.length > 0) {
+              fetchResidents(properties[0].id);
+            }
+          }}
+          onUpdate={() => {
+            // Refresh residents to get updated balances
+            if (propertyId) {
+              fetchResidents(propertyId);
+            } else if (properties.length > 0) {
+              fetchResidents(properties[0].id);
+            }
+          }}
+        />
       )}
     </div>
   );
