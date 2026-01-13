@@ -442,7 +442,7 @@ export function LandingPage() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -475,9 +475,6 @@ export function LandingPage() {
                       />
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
 
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -550,34 +547,32 @@ export function LandingPage() {
                     </select>
                   </div>
 
-            {/* Fixed Footer with Submit Button */}
-            {!submitSuccess && (
-              <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
-                <form onSubmit={handleSubmit}>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-havyn-primary text-white py-3 px-4 rounded-lg font-medium hover:bg-havyn-dark focus:outline-none focus:ring-2 focus:ring-havyn-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 mb-3"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Calendar className="w-4 h-4" />
-                        Book Demo
-                      </>
-                    )}
-                  </button>
+                  {/* Submit Button */}
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full bg-havyn-primary text-white py-3 px-4 rounded-lg font-medium hover:bg-havyn-dark focus:outline-none focus:ring-2 focus:ring-havyn-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Calendar className="w-4 h-4" />
+                          Book Demo
+                        </>
+                      )}
+                    </button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
+                      We'll contact you within 24 hours to schedule your personalized demo.
+                    </p>
+                  </div>
                 </form>
-
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                  We'll contact you within 24 hours to schedule your personalized demo.
-                </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}

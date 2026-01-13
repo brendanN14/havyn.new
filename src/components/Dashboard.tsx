@@ -14,8 +14,9 @@ import {
   Loader2, History, Building2, AlertTriangle, Users, TrendingUp, 
   ArrowUpRight, FileX, Upload, FileCheck, Eye, Brain, Bug, 
   ChevronDown, ChevronUp, DollarSign, Clock, AlertCircle,
-  ArrowUpDown, Search, ChevronRight
+  ArrowUpDown, Search, ChevronRight, Sparkles, ExternalLink
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 
 type SortField = 'property' | 'units' | 'score' | 'risk' | 'delinquency';
@@ -25,6 +26,7 @@ type DelinquencySortField = 'tenant' | 'property' | 'amount' | 'aging';
 
 export function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Debug function - you can call this from browser console
   (window as any).debugSupabase = async () => {
@@ -1571,6 +1573,47 @@ const results = await pollForResults(job_id, accountIdForJob);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Core PMS Beta Banner */}
+      <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Try Core PMS (Beta)</h3>
+              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded">
+                New
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              Our new property management system with native data entry, lease management, and real-time insights. 
+              No CSV upload required. Perfect for managing a single property.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => navigate('/core/dashboard')}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                <Building2 className="w-4 h-4" />
+                Go to Core Dashboard
+                <ExternalLink className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => navigate('/core/properties')}
+                className="flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-sm font-medium"
+              >
+                Properties
+              </button>
+              <button
+                onClick={() => navigate('/core/units')}
+                className="flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-sm font-medium"
+              >
+                Units
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="mb-8">
         {/* Buttons Row */}
         <div className="flex flex-wrap gap-4 mb-4">

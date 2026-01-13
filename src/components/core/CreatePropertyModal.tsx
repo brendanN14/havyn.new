@@ -21,6 +21,7 @@ interface CreatePropertyModalProps {
 
 export function CreatePropertyModal({ property, onClose, onSuccess }: CreatePropertyModalProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -76,11 +77,21 @@ export function CreatePropertyModal({ property, onClose, onSuccess }: CreateProp
 
         if (updateError) throw updateError;
       } else {
-        const { error: insertError } = await supabase
+        const { data: newProperty, error: insertError } = await supabase
           .from('core_properties')
-          .insert(data);
+          .insert(data)
+          .select()
+          .single();
 
         if (insertError) throw insertError;
+        
+        // Redirect to property detail page after creation
+        if (newProperty) {
+          onSuccess();
+          onClose();
+          navigate(`/core/properties/${newProperty.id}/units`);
+          return;
+        }
       }
 
       onSuccess();
@@ -222,5 +233,8 @@ export function CreatePropertyModal({ property, onClose, onSuccess }: CreateProp
     </div>
   );
 }
+
+
+
 
 

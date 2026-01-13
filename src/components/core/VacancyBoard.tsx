@@ -143,3 +143,6 @@ export function VacancyBoard({ units, property, onUpdate }: VacancyBoardProps) {
 }
 
 
+
+
+

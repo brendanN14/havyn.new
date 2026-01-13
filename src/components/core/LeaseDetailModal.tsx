@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, DollarSign, Plus, Calendar, RefreshCw, AlertCircle, FileText } from 'lucide-react';
+import { X, Loader2, DollarSign, Plus, Calendar, RefreshCw, AlertCircle, FileText, Sparkles, MessageSquare } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { TransactionModal } from './TransactionModal';
 import { updateTenantInsightsForLease } from '../../utils/tenantInsights';
+import { generateTenantSummary } from '../../utils/tenantSummary';
+import { generateMessageTemplate, generateSMSMessage } from '../../utils/messageTemplates';
 
 interface LeaseDetailModalProps {
   leaseId: string;
@@ -15,6 +17,7 @@ type Tab = 'details' | 'ledger';
 
 export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModalProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('ledger');
   const [loading, setLoading] = useState(true);
   const [refreshingInsight, setRefreshingInsight] = useState(false);
@@ -26,6 +29,11 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
   const [transactionAction, setTransactionAction] = useState<'rent' | 'payment' | 'charge' | 'credit'>('payment');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [summaryText, setSummaryText] = useState<string>('');
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [draftText, setDraftText] = useState<string>('');
+  const [draftChannel, setDraftChannel] = useState<'email' | 'sms'>('email');
 
   useEffect(() => {
     fetchLeaseDetails();
@@ -53,7 +61,7 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
         .from('core_leases')
         .select(`
           *,
-          unit:core_units(unit_code),
+          unit:core_units(id, unit_code, property_id),
           primary_resident:core_residents(*),
           ledger_account:core_ledger_accounts(*)
         `)
@@ -160,6 +168,138 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
     setTransactionModalOpen(true);
   };
 
+  const handleSummarizeTenant = () => {
+    if (!lease || !ledgerAccount) return;
+
+    const balance = Math.abs(Number(ledgerAccount.current_balance || 0));
+    const summary = generateTenantSummary({
+      residentName: lease.primary_resident?.full_name || 'Unknown',
+      unitCode: lease.unit?.unit_code || 'Unknown',
+      balance,
+      daysPastDue: ledgerAccount.days_past_due || 0,
+      category: insight?.category || 'current',
+      lastPaymentAt: ledgerAccount.last_payment_at || null,
+      lastContactAt: ledgerAccount.last_contact_at || null,
+      promiseToPayDate: ledgerAccount.promise_to_pay_date || null,
+      promiseAmount: ledgerAccount.promise_amount ? Number(ledgerAccount.promise_amount) : null,
+      promiseStatus: ledgerAccount.promise_status || null,
+      noticeType: ledgerAccount.notice_type || null,
+      noticeSentDate: ledgerAccount.notice_sent_date || null,
+      noticeMethod: ledgerAccount.notice_method || null
+    });
+
+    setSummaryText(summary);
+    setSummaryModalOpen(true);
+  };
+
+  // Helper to derive category from ledger account if insight is missing
+  const deriveCategory = (balance: number, daysPastDue: number): 'current' | 'at_risk' | 'delinquent' | 'severe_delinquent' => {
+    if (insight?.category) {
+      return insight.category as 'current' | 'at_risk' | 'delinquent' | 'severe_delinquent';
+    }
+    
+    // Derive from balance and days past due
+    if (balance <= 0) {
+      return 'current';
+    } else if (daysPastDue >= 30 || balance >= 2000) {
+      return 'severe_delinquent';
+    } else if (daysPastDue >= 6) {
+      return 'delinquent';
+    } else if (daysPastDue >= 1 || balance > 0) {
+      return 'at_risk';
+    }
+    return 'current';
+  };
+
+  // Helper to compute balance from transactions if ledger account balance is missing
+  const getEffectiveBalance = async (): Promise<number> => {
+    if (ledgerAccount?.current_balance !== undefined && ledgerAccount.current_balance !== null) {
+      return Math.abs(Number(ledgerAccount.current_balance));
+    }
+    
+    // Compute from transactions if available
+    if (ledgerAccount?.id && transactions.length > 0) {
+      const computedBalance = transactions.reduce((sum, txn) => sum + Number(txn.amount || 0), 0);
+      return Math.abs(computedBalance);
+    }
+    
+    return 0;
+  };
+
+  // Get disable reason for Draft Outreach button
+  const getDraftOutreachDisabledReason = (): string | null => {
+    if (!lease) return 'No lease data available';
+    if (!lease.primary_resident) return 'No resident information';
+    
+    const hasEmail = !!lease.primary_resident.email;
+    const hasPhone = !!lease.primary_resident.phone;
+    
+    if (!hasEmail && !hasPhone) {
+      return 'No email or phone on file';
+    }
+    
+    // Check if we have balance data (ledger account or transactions)
+    if (!ledgerAccount && transactions.length === 0) {
+      return 'No ledger data available';
+    }
+    
+    return null; // Enabled
+  };
+
+  const handleDraftOutreach = async () => {
+    if (!lease || !lease.primary_resident) {
+      setErrorMessage('Cannot draft outreach: No lease or resident data');
+      return;
+    }
+
+    try {
+      const hasEmail = !!lease.primary_resident.email;
+      const hasPhone = !!lease.primary_resident.phone;
+
+      if (!hasEmail && !hasPhone) {
+        setErrorMessage('Cannot draft outreach: No email or phone on file');
+        return;
+      }
+
+      // Compute balance (with fallback to transactions)
+      let balance = 0;
+      if (ledgerAccount?.current_balance !== undefined && ledgerAccount.current_balance !== null) {
+        balance = Math.abs(Number(ledgerAccount.current_balance));
+      } else if (transactions.length > 0) {
+        const computedBalance = transactions.reduce((sum, txn) => sum + Number(txn.amount || 0), 0);
+        balance = Math.abs(computedBalance);
+      }
+
+      const daysPastDue = ledgerAccount?.days_past_due || 0;
+      const category = deriveCategory(balance, daysPastDue);
+
+      // Auto-select channel based on available contact info
+      if (!hasEmail && hasPhone) {
+        setDraftChannel('sms');
+      } else if (hasEmail && !hasPhone) {
+        setDraftChannel('email');
+      }
+
+      const params = {
+        residentName: lease.primary_resident.full_name || 'Unknown',
+          category,
+        balance,
+        daysPastDue,
+        unitCode: lease.unit?.unit_code
+      };
+
+      const draft = draftChannel === 'email'
+        ? generateMessageTemplate(params, 'friendly')
+        : generateSMSMessage(params);
+
+      setDraftText(draft);
+      setDraftModalOpen(true);
+    } catch (err: any) {
+      console.error('[LeaseDetailModal] Error drafting outreach:', err);
+      setErrorMessage(`Failed to draft outreach: ${err?.message || 'Unknown error'}`);
+    }
+  };
+
   const getBalanceDisplay = () => {
     if (!ledgerAccount) return { amount: 0, isOwed: false };
     const balance = Number(ledgerAccount.current_balance || 0);
@@ -170,7 +310,44 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex-1">
+              {lease?.unit?.property_id && (
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <button
+                    onClick={() => {
+                      onClose();
+                      navigate(`/core/properties/${lease.unit.property_id}/leases`);
+                    }}
+                    className="hover:text-gray-700 dark:hover:text-gray-300"
+                  >
+                    Property
+                  </button>
+                  <span>/</span>
+                  <button
+                    onClick={() => {
+                      onClose();
+                      navigate(`/core/properties/${lease.unit.property_id}/leases`);
+                    }}
+                    className="hover:text-gray-700 dark:hover:text-gray-300"
+                  >
+                    Leases
+                  </button>
+                  <span>/</span>
+                  <span className="text-gray-900 dark:text-white">Lease Details</span>
+                </div>
+              )}
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Lease Details</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-4"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="overflow-y-auto flex-1 p-6">
           <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
         </div>
       </div>
@@ -187,10 +364,37 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex-1">
+            {lease?.unit?.property_id && (
+              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <button
+                  onClick={() => {
+                    onClose();
+                    navigate(`/core/properties/${lease.unit.property_id}/leases`);
+                  }}
+                  className="hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  Property
+                </button>
+                <span>/</span>
+                <button
+                  onClick={() => {
+                    onClose();
+                    navigate(`/core/properties/${lease.unit.property_id}/leases`);
+                  }}
+                  className="hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  Leases
+                </button>
+                <span>/</span>
+                <span className="text-gray-900 dark:text-white">Lease Details</span>
+              </div>
+            )}
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Lease Details - {lease.unit?.unit_code}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-4">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -255,9 +459,9 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
           <div className="p-6 overflow-y-auto flex-1">
             {activeTab === 'details' && (
               <div className="space-y-6">
-                {/* Lease Summary */}
+          {/* Lease Summary */}
                 <div className="grid grid-cols-2 gap-6">
-                  <div>
+            <div>
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Resident</h3>
                     <p className="text-gray-600 dark:text-gray-400">{lease.primary_resident?.full_name || 'N/A'}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">{lease.primary_resident?.email || ''}</p>
@@ -265,6 +469,21 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
             </div>
             <div>
                     <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Lease Information</h3>
+                    {lease.unit?.id && (
+                      <p className="text-gray-600 dark:text-gray-400 mb-2">
+                        <span className="font-medium">Unit:</span>{' '}
+                        <button
+                          onClick={() => {
+                            onClose();
+                            navigate(`/core/units/${lease.unit.id}`);
+                          }}
+                          className="text-havyn-primary dark:text-emerald-400 hover:underline flex items-center gap-1 inline"
+                        >
+                          <Home className="w-3 h-3" />
+                          {lease.unit?.unit_code || 'Unknown'}
+                        </button>
+                      </p>
+                    )}
                     <p className="text-gray-600 dark:text-gray-400">
                       <span className="font-medium">Start:</span> {new Date(lease.lease_start).toLocaleDateString()}
                     </p>
@@ -300,8 +519,43 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
                     {insight.narrative_summary && (
                       <p className="text-sm text-gray-600 dark:text-gray-400">{insight.narrative_summary}</p>
                     )}
-                </div>
+                  </div>
                 )}
+
+                {/* AI Actions */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleSummarizeTenant}
+                    disabled={!lease || !ledgerAccount}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Summarize Tenant
+                  </button>
+                  {(() => {
+                    const disableReason = getDraftOutreachDisabledReason();
+                    const isDisabled = !!disableReason;
+                    return (
+                      <div className="relative group">
+                        <button
+                          onClick={handleDraftOutreach}
+                          disabled={isDisabled}
+                          title={disableReason || 'Draft outreach message'}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          Draft Outreach
+                        </button>
+                        {isDisabled && (
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                            {disableReason}
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             )}
 
@@ -378,7 +632,7 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
                   >
                     <FileText className="w-4 h-4" />
                     Add Credit/Refund
-                  </button>
+            </button>
           </div>
 
                 {/* Transactions Table */}
@@ -445,7 +699,7 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
                         </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                   {user?.email || '-'}
-                                </td>
+                        </td>
                       </tr>
                             );
                           })
@@ -453,7 +707,7 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
                 </tbody>
               </table>
             </div>
-                </div>
+          </div>
               </div>
             )}
           </div>
@@ -471,6 +725,106 @@ export function LeaseDetailModal({ leaseId, onClose, onUpdate }: LeaseDetailModa
           actionType={transactionAction}
           leaseRentAmount={Number(lease.rent_amount || 0)}
         />
+      )}
+
+      {/* Summary Modal */}
+      {summaryModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Tenant Summary</h3>
+                <button onClick={() => setSummaryModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{summaryText}</p>
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                onClick={() => setSummaryModalOpen(false)}
+                className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-emerald-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Draft Outreach Modal */}
+      {draftModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Draft Outreach</h3>
+                <button onClick={() => setDraftModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Channel</label>
+                <select
+                  value={draftChannel}
+                  onChange={(e) => {
+                    setDraftChannel(e.target.value as 'email' | 'sms');
+                    // Regenerate draft when channel changes
+                    if (lease && ledgerAccount && insight) {
+                      const balance = Math.abs(Number(ledgerAccount.current_balance || 0));
+                      const params = {
+                        residentName: lease.primary_resident?.full_name || 'Unknown',
+                        category: (insight.category || 'current') as 'current' | 'at_risk' | 'delinquent' | 'severe_delinquent',
+                        balance,
+                        daysPastDue: ledgerAccount.days_past_due || 0,
+                        unitCode: lease.unit?.unit_code
+                      };
+                      const draft = e.target.value === 'email'
+                        ? generateMessageTemplate(params, 'friendly')
+                        : generateSMSMessage(params);
+                      setDraftText(draft);
+                    }
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                >
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Message</label>
+                <textarea
+                  value={draftText}
+                  onChange={(e) => setDraftText(e.target.value)}
+                  rows={12}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end">
+              <button
+                onClick={() => setDraftModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(draftText);
+                  setSuccessMessage('Message copied to clipboard');
+                  setDraftModalOpen(false);
+                }}
+                className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-emerald-600 transition-colors"
+              >
+                Copy Message
+              </button>
+        </div>
+      </div>
+    </div>
       )}
     </>
   );

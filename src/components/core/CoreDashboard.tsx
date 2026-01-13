@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, Home, Users, TrendingUp, AlertCircle, Loader2, Calendar, Eye, EyeOff, Plus } from 'lucide-react';
+import { Building2, Home, Users, TrendingUp, AlertCircle, Loader2, Calendar, Eye, EyeOff, Plus, DollarSign, FileText, Clock, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { LeaseDetailModal } from './LeaseDetailModal';
+import { getAmountOwed, isLeaseDelinquent } from '../../utils/financialSummary';
 
 interface Property {
   id: string;
@@ -15,14 +17,32 @@ interface Unit {
   status: string;
   available_date: string | null;
   showable: boolean;
+  property_id: string;
 }
 
-interface DelinquencyPreview {
-  resident_name: string;
-  unit_code: string;
+interface DelinquencyQueueItem {
+  leaseId: string;
+  residentName: string;
+  unitCode: string;
   balance: number;
-  days_past_due: number;
+  daysPastDue: number;
   category: string;
+}
+
+interface ExpiringLease {
+  leaseId: string;
+  residentName: string;
+  unitCode: string;
+  leaseEnd: string;
+  daysUntilExpiry: number;
+}
+
+interface VacantUnit {
+  unitId: string;
+  unitCode: string;
+  status: string;
+  availableDate: string | null;
+  propertyName: string;
 }
 
 export function CoreDashboard() {
@@ -31,6 +51,7 @@ export function CoreDashboard() {
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [showAllProperties, setShowAllProperties] = useState(false);
   const [stats, setStats] = useState({
     totalUnits: 0,
     vacantUnits: 0,
@@ -38,8 +59,11 @@ export function CoreDashboard() {
     activeLeases: 0,
     totalBalanceDue: 0
   });
-  const [vacancyPreview, setVacancyPreview] = useState<Unit[]>([]);
-  const [delinquencyPreview, setDelinquencyPreview] = useState<DelinquencyPreview[]>([]);
+  const [delinquencyQueue, setDelinquencyQueue] = useState<DelinquencyQueueItem[]>([]);
+  const [expiringLeases, setExpiringLeases] = useState<ExpiringLease[]>([]);
+  const [vacantUnits, setVacantUnits] = useState<VacantUnit[]>([]);
+  const [selectedLeaseId, setSelectedLeaseId] = useState<string | null>(null);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
 
@@ -62,7 +86,6 @@ export function CoreDashboard() {
         console.log('[CoreDashboard] Properties count result:', { count, error: countError });
 
         if (countError) {
-          // Log error with context
           console.error('[CoreDashboard] Error checking properties count:', {
             code: countError.code,
             message: countError.message,
@@ -86,7 +109,7 @@ export function CoreDashboard() {
 
         console.log('[CoreDashboard] Found', count, 'properties, loading dashboard');
         setCheckingOnboarding(false);
-        fetchProperties();
+    fetchProperties();
       } catch (err: any) {
         console.error('[CoreDashboard] Unexpected error in checkOnboarding:', err);
         setCheckingOnboarding(false);
@@ -97,12 +120,11 @@ export function CoreDashboard() {
   }, [user?.id, navigate]);
 
   useEffect(() => {
-    if (selectedPropertyId) {
+    if (selectedPropertyId || showAllProperties) {
       fetchStats();
-      fetchVacancyPreview();
-      fetchDelinquencyPreview();
+      fetchTodaysQueue();
     }
-  }, [selectedPropertyId, user?.id]);
+  }, [selectedPropertyId, showAllProperties, user?.id]);
 
   const logError = (context: string, err: any) => {
     const errorInfo = {
@@ -136,8 +158,8 @@ export function CoreDashboard() {
 
       if (fetchError) {
         logError('Fetching properties', fetchError);
-        setLoading(false);
-        return;
+          setLoading(false);
+          return;
       }
       
       const props = data || [];
@@ -157,29 +179,42 @@ export function CoreDashboard() {
   };
 
   const fetchStats = async () => {
-    if (!selectedPropertyId || !user?.id) return;
+    if (!selectedPropertyId && !showAllProperties || !user?.id) return;
 
     try {
-      // Total units - simplified query
+      // Build property filter
+      let propertyIds = showAllProperties 
+        ? (properties.map(p => p.id))
+        : [selectedPropertyId!];
+
+      // Total units
       const { count: totalUnits, error: unitsCountError } = await supabase
         .from('core_units')
         .select('*', { count: 'exact', head: true })
-        .eq('property_id', selectedPropertyId);
+        .in('property_id', propertyIds);
 
       if (unitsCountError) throw unitsCountError;
 
-      // Units by status - simplified query
+      // Units by status
       const { data: units, error: unitsError } = await supabase
         .from('core_units')
         .select('status')
-        .eq('property_id', selectedPropertyId);
+        .in('property_id', propertyIds);
 
       if (unitsError) throw unitsError;
 
       const vacantUnits = units?.filter(u => u.status === 'vacant').length || 0;
       const occupiedUnits = units?.filter(u => u.status === 'occupied').length || 0;
 
-      // Active leases - simplified query
+      // Get unit IDs for property filter
+      const { data: propertyUnits } = await supabase
+        .from('core_units')
+        .select('id')
+        .in('property_id', propertyIds);
+
+      const propertyUnitIds = new Set(propertyUnits?.map(u => u.id) || []);
+
+      // Active leases
       const { data: leases, error: leasesError } = await supabase
         .from('core_leases')
         .select('id, unit_id')
@@ -187,32 +222,31 @@ export function CoreDashboard() {
 
       if (leasesError) throw leasesError;
 
-      // Filter leases by property
-      const { data: propertyUnits } = await supabase
-        .from('core_units')
-        .select('id')
-        .eq('property_id', selectedPropertyId);
-
-      const propertyUnitIds = new Set(propertyUnits?.map(u => u.id) || []);
       const activeLeases = leases?.filter(l => propertyUnitIds.has(l.unit_id)).length || 0;
 
-      // Total balance due - simplified query
-      const { data: ledgerAccounts, error: ledgerError } = await supabase
-        .from('core_ledger_accounts')
-        .select('current_balance, lease_id');
-
-      if (ledgerError) throw ledgerError;
-
-      // Get lease IDs for this property
+      // Total balance due (negative balance = money owed)
       const { data: propertyLeases } = await supabase
         .from('core_leases')
         .select('id')
-        .in('unit_id', propertyUnitIds);
+        .in('unit_id', Array.from(propertyUnitIds));
 
       const propertyLeaseIds = new Set(propertyLeases?.map(l => l.id) || []);
+      
+      // Get ledger accounts for property leases
+      const { data: ledgerAccounts, error: ledgerError } = await supabase
+        .from('core_ledger_accounts')
+        .select('current_balance, lease_id')
+        .in('lease_id', Array.from(propertyLeaseIds));
+
+      if (ledgerError) throw ledgerError;
+
+      // Calculate total amount owed (convert negative balances to positive amounts)
       const totalBalanceDue = ledgerAccounts
         ?.filter(acc => propertyLeaseIds.has(acc.lease_id))
-        .reduce((sum, acc) => sum + (Number(acc.current_balance) || 0), 0) || 0;
+        .reduce((sum, acc) => {
+          const balance = Number(acc.current_balance || 0);
+          return sum + getAmountOwed(balance);
+        }, 0) || 0;
 
       setStats({
         totalUnits: totalUnits || 0,
@@ -229,79 +263,91 @@ export function CoreDashboard() {
     }
   };
 
-  const fetchVacancyPreview = async () => {
-    if (!selectedPropertyId || !user?.id) return;
-
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('core_units')
-        .select('id, unit_code, status, available_date, showable')
-        .eq('property_id', selectedPropertyId)
-        .order('unit_code')
-        .limit(10);
-
-      if (fetchError) throw fetchError;
-      setVacancyPreview(data || []);
-    } catch (err: any) {
-      console.error('Error fetching vacancy preview:', err);
-      if (err?.code === 'PGRST116' || err?.message?.includes('relation') || err?.message?.includes('does not exist')) {
-        setError('Core PMS tables not found. Please run the database migration.');
-      }
-    }
-  };
-
-  const fetchDelinquencyPreview = async () => {
-    if (!selectedPropertyId || !user?.id) {
+  const fetchTodaysQueue = async () => {
+    if ((!selectedPropertyId && !showAllProperties) || !user?.id) {
       setLoading(false);
       return;
     }
 
+    setLoading(true);
     try {
-      // Simplified query - fetch separately and join in code
-      const { data: ledgerAccounts, error: ledgerError } = await supabase
-        .from('core_ledger_accounts')
-        .select('current_balance, days_past_due, lease_id')
-        .gt('current_balance', 0)
-        .order('days_past_due', { ascending: false })
-        .limit(20);
+      // Build property filter
+      let propertyIds = showAllProperties 
+        ? (properties.map(p => p.id))
+        : [selectedPropertyId!];
 
-      if (ledgerError) {
-        console.error('[CoreDashboard] Error fetching ledger accounts:', ledgerError);
-        setDelinquencyPreview([]);
-        setLoading(false);
-        return;
-      }
-
-      if (!ledgerAccounts || ledgerAccounts.length === 0) {
-        setDelinquencyPreview([]);
-        setLoading(false);
-        return;
-      }
-
-      // Get lease IDs
-      const leaseIds = ledgerAccounts.map(acc => acc.lease_id);
-      const { data: leases, error: leasesError } = await supabase
-        .from('core_leases')
-        .select('id, unit_id, primary_resident_id')
-        .in('id', leaseIds);
-
-      if (leasesError) throw leasesError;
-
-      // Get unit IDs and filter by property
-      const unitIds = leases?.map(l => l.unit_id) || [];
-      const { data: units, error: unitsError } = await supabase
+      // Get units for selected properties
+      const { data: propertyUnits, error: unitsError } = await supabase
         .from('core_units')
         .select('id, unit_code, property_id')
-        .in('id', unitIds)
-        .eq('property_id', selectedPropertyId);
+        .in('property_id', propertyIds);
 
       if (unitsError) throw unitsError;
 
-      const propertyUnitIds = new Set(units?.map(u => u.id) || []);
-      const propertyLeases = leases?.filter(l => propertyUnitIds.has(l.unit_id)) || [];
+      const propertyUnitIds = new Set(propertyUnits?.map(u => u.id) || []);
+      const unitMap = new Map(propertyUnits?.map(u => [u.id, u]) || []);
 
-      // Get resident IDs
-      const residentIds = propertyLeases.map(l => l.primary_resident_id).filter(Boolean);
+      // Get property names
+      const { data: propsData } = await supabase
+        .from('core_properties')
+        .select('id, name')
+        .in('id', propertyIds);
+
+      const propertyMap = new Map(propsData?.map(p => [p.id, p.name]) || []);
+
+      // Fetch delinquency queue (balance > 0 means owed)
+      await fetchDelinquencyQueue(Array.from(propertyUnitIds), unitMap);
+      
+      // Fetch expiring leases
+      await fetchExpiringLeases(Array.from(propertyUnitIds), unitMap);
+      
+      // Fetch vacant/ready units
+      await fetchVacantUnits(propertyIds, propertyMap);
+      
+    } catch (err: any) {
+      console.error('[CoreDashboard] Error fetching today\'s queue:', err);
+      if (err?.code === 'PGRST116' || err?.message?.includes('relation') || err?.message?.includes('does not exist')) {
+        setError('Core PMS tables not found. Please run the database migration.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDelinquencyQueue = async (propertyUnitIds: string[], unitMap: Map<string, any>) => {
+    try {
+      // Get leases for these units
+      const { data: leases, error: leasesError } = await supabase
+        .from('core_leases')
+        .select('id, unit_id, primary_resident_id, status')
+        .in('unit_id', propertyUnitIds)
+        .eq('status', 'active');
+
+      if (leasesError) throw leasesError;
+
+      if (!leases || leases.length === 0) {
+        setDelinquencyQueue([]);
+        return;
+      }
+
+      const leaseIds = leases.map(l => l.id);
+
+      // Get ledger accounts (filter for negative balances = money owed)
+      const { data: ledgerAccounts, error: ledgerError } = await supabase
+        .from('core_ledger_accounts')
+        .select('lease_id, current_balance, days_past_due')
+        .in('lease_id', leaseIds)
+        .lt('current_balance', 0); // Negative balance = money owed
+
+      if (ledgerError) throw ledgerError;
+
+      if (!ledgerAccounts || ledgerAccounts.length === 0) {
+        setDelinquencyQueue([]);
+        return;
+      }
+
+      // Get residents
+      const residentIds = leases.map(l => l.primary_resident_id).filter(Boolean);
       const { data: residents, error: residentsError } = await supabase
         .from('core_residents')
         .select('id, full_name')
@@ -310,44 +356,148 @@ export function CoreDashboard() {
       if (residentsError) throw residentsError;
 
       // Get insights
-      const propertyLeaseIds = propertyLeases.map(l => l.id);
-      const { data: insights, error: insightsError } = await supabase
+      const { data: insights } = await supabase
         .from('core_tenant_insights')
         .select('lease_id, category')
-        .in('lease_id', propertyLeaseIds);
+        .in('lease_id', leaseIds);
 
-      if (insightsError && insightsError.code !== 'PGRST116') throw insightsError;
-
-      // Build preview
       const residentMap = new Map(residents?.map(r => [r.id, r.full_name]) || []);
-      const unitMap = new Map(units?.map(u => [u.id, u.unit_code]) || []);
       const insightMap = new Map(insights?.map(i => [i.lease_id, i.category]) || []);
+      const leaseMap = new Map(leases.map(l => [l.id, l]));
 
-      const preview: DelinquencyPreview[] = ledgerAccounts
-        .filter(acc => {
-          const lease = propertyLeases.find(l => l.id === acc.lease_id);
-          return lease && propertyUnitIds.has(lease.unit_id);
-        })
-        .slice(0, 10)
-        .map((acc) => {
-          const lease = propertyLeases.find(l => l.id === acc.lease_id);
+      // Build queue items, sorted worst-first (days_past_due desc, balance desc)
+      const queue: DelinquencyQueueItem[] = ledgerAccounts
+        .map(acc => {
+          const lease = leaseMap.get(acc.lease_id);
+          if (!lease) return null;
+
+          const unit = unitMap.get(lease.unit_id);
+          const residentName = residentMap.get(lease.primary_resident_id || '') || 'Unknown';
+
+          const balance = Number(acc.current_balance || 0);
           return {
-            resident_name: lease ? (residentMap.get(lease.primary_resident_id || '') || 'Unknown') : 'Unknown',
-            unit_code: lease ? (unitMap.get(lease.unit_id) || 'Unknown') : 'Unknown',
-            balance: Number(acc.current_balance) || 0,
-            days_past_due: acc.days_past_due || 0,
+            leaseId: acc.lease_id,
+            residentName,
+            unitCode: unit?.unit_code || 'Unknown',
+            balance: getAmountOwed(balance), // Convert to positive amount owed
+            daysPastDue: acc.days_past_due || 0,
             category: insightMap.get(acc.lease_id) || 'unknown'
           };
+        })
+        .filter((item): item is DelinquencyQueueItem => item !== null)
+        .sort((a, b) => {
+          // Sort by days_past_due desc, then balance desc
+          if (b.daysPastDue !== a.daysPastDue) {
+            return b.daysPastDue - a.daysPastDue;
+          }
+          return b.balance - a.balance;
         });
 
-      setDelinquencyPreview(preview);
+      setDelinquencyQueue(queue);
     } catch (err: any) {
-      console.error('Error fetching delinquency preview:', err);
-      if (err?.code === 'PGRST116' || err?.message?.includes('relation') || err?.message?.includes('does not exist')) {
-        setError('Core PMS tables not found. Please run the database migration.');
+      console.error('[CoreDashboard] Error fetching delinquency queue:', err);
+      setDelinquencyQueue([]);
+    }
+  };
+
+  const fetchExpiringLeases = async (propertyUnitIds: string[], unitMap: Map<string, any>) => {
+    try {
+      const today = new Date();
+      const days30 = new Date(today);
+      days30.setDate(days30.getDate() + 30);
+      const days60 = new Date(today);
+      days60.setDate(days60.getDate() + 60);
+      const days90 = new Date(today);
+      days90.setDate(days90.getDate() + 90);
+
+      // Get active leases expiring in next 90 days
+      const { data: leases, error: leasesError } = await supabase
+        .from('core_leases')
+        .select('id, unit_id, primary_resident_id, lease_end, status')
+        .in('unit_id', propertyUnitIds)
+        .eq('status', 'active')
+        .not('lease_end', 'is', null)
+        .lte('lease_end', days90.toISOString().split('T')[0])
+        .gte('lease_end', today.toISOString().split('T')[0]);
+
+      if (leasesError) throw leasesError;
+
+      if (!leases || leases.length === 0) {
+        setExpiringLeases([]);
+        return;
       }
-    } finally {
-      setLoading(false);
+
+      // Get residents
+      const residentIds = leases.map(l => l.primary_resident_id).filter(Boolean);
+      const { data: residents, error: residentsError } = await supabase
+        .from('core_residents')
+        .select('id, full_name')
+        .in('id', residentIds);
+
+      if (residentsError) throw residentsError;
+
+      const residentMap = new Map(residents?.map(r => [r.id, r.full_name]) || []);
+      const leaseMap = new Map(leases.map(l => [l.id, l]));
+
+      // Calculate days until expiry and build list
+      const expiring: ExpiringLease[] = leases
+        .map(lease => {
+          const unit = unitMap.get(lease.unit_id);
+          const residentName = residentMap.get(lease.primary_resident_id || '') || 'Unknown';
+          const endDate = new Date(lease.lease_end);
+          const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+          return {
+            leaseId: lease.id,
+            residentName,
+            unitCode: unit?.unit_code || 'Unknown',
+            leaseEnd: lease.lease_end,
+            daysUntilExpiry
+          };
+        })
+        .sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry); // Sort by days ascending (closest first)
+
+      setExpiringLeases(expiring);
+    } catch (err: any) {
+      console.error('[CoreDashboard] Error fetching expiring leases:', err);
+      setExpiringLeases([]);
+    }
+  };
+
+  const fetchVacantUnits = async (propertyIds: string[], propertyMap: Map<string, string>) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+
+      // Get vacant/ready/reserved units with available_date <= today and showable=true
+      const { data: units, error: unitsError } = await supabase
+        .from('core_units')
+        .select('id, unit_code, status, available_date, showable, property_id')
+        .in('property_id', propertyIds)
+        .in('status', ['vacant', 'make-ready', 'reserved'])
+        .eq('showable', true)
+        .or(`available_date.is.null,available_date.lte.${today}`);
+
+      if (unitsError) throw unitsError;
+
+      if (!units || units.length === 0) {
+        setVacantUnits([]);
+        return;
+      }
+
+      const vacant: VacantUnit[] = units
+        .map(unit => ({
+          unitId: unit.id,
+          unitCode: unit.unit_code,
+          status: unit.status,
+          availableDate: unit.available_date,
+          propertyName: propertyMap.get(unit.property_id) || 'Unknown'
+        }))
+        .sort((a, b) => a.unitCode.localeCompare(b.unitCode));
+
+      setVacantUnits(vacant);
+    } catch (err: any) {
+      console.error('[CoreDashboard] Error fetching vacant units:', err);
+      setVacantUnits([]);
     }
   };
 
@@ -362,7 +512,7 @@ export function CoreDashboard() {
     );
   }
 
-  if (loading && !selectedProperty && !error) {
+  if (loading && !selectedProperty && !showAllProperties && !error) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
@@ -374,20 +524,33 @@ export function CoreDashboard() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Core PMS Dashboard</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Welcome to Havyn 2.0 - Property Management System</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Today's Queue</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Action items requiring attention</p>
         </div>
+        <div className="flex items-center gap-3">
         {properties.length > 1 && (
+            <div className="flex items-center gap-2">
           <select
-            value={selectedPropertyId || ''}
-            onChange={(e) => setSelectedPropertyId(e.target.value)}
+                value={showAllProperties ? 'all' : (selectedPropertyId || '')}
+                onChange={(e) => {
+                  if (e.target.value === 'all') {
+                    setShowAllProperties(true);
+                    setSelectedPropertyId(null);
+                  } else {
+                    setShowAllProperties(false);
+                    setSelectedPropertyId(e.target.value);
+                  }
+                }}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           >
+                <option value="all">All Properties</option>
             {properties.map(prop => (
               <option key={prop.id} value={prop.id}>{prop.name}</option>
             ))}
           </select>
+            </div>
         )}
+        </div>
       </div>
 
       {error && (
@@ -396,9 +559,6 @@ export function CoreDashboard() {
           <div>
             <p className="text-red-800 dark:text-red-200 font-semibold">Database Error</p>
             <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-            <p className="text-red-600 dark:text-red-400 text-xs mt-2">
-              To fix: Run the migration file <code className="bg-red-100 dark:bg-red-900/30 px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
-            </p>
           </div>
         </div>
       )}
@@ -477,80 +637,31 @@ export function CoreDashboard() {
             </div>
           </div>
 
-          {/* Vacancy Board Preview */}
+          {/* Today's Queue Sections */}
+          <div className="space-y-6">
+            {/* Delinquency Needing Action */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Vacancy Board Preview</h2>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Delinquency Needing Action</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{delinquencyQueue.length} account{delinquencyQueue.length !== 1 ? 's' : ''} past due</p>
+                </div>
+                {delinquencyQueue.length > 0 && (
               <button
-                onClick={() => navigate('/core/units')}
+                    onClick={() => navigate('/core/collections')}
                 className="text-sm text-havyn-primary dark:text-green-400 hover:underline"
               >
                 View All
               </button>
+                )}
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Available Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Showable</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {vacancyPreview.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                        No units found
-                      </td>
-                    </tr>
-                  ) : (
-                    vacancyPreview.map((unit) => (
-                      <tr key={unit.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          {unit.unit_code}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            unit.status === 'vacant' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                            unit.status === 'occupied' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300' :
-                            unit.status === 'make-ready' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                            'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
-                          }`}>
-                            {unit.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {unit.available_date ? new Date(unit.available_date).toLocaleDateString() : 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {unit.showable ? (
-                            <Eye className="w-4 h-4 text-green-600 dark:text-green-400" />
-                          ) : (
-                            <EyeOff className="w-4 h-4 text-gray-400" />
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Delinquency Preview */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Delinquency Preview</h2>
-              <button
-                onClick={() => navigate('/core/residents')}
-                className="text-sm text-havyn-primary dark:text-green-400 hover:underline"
-              >
-                View All
-              </button>
-            </div>
-            <div className="overflow-x-auto">
+                {delinquencyQueue.length === 0 ? (
+                  <div className="p-12 text-center">
+                    <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">All accounts are current</p>
+                  </div>
+                ) : (
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
@@ -559,29 +670,23 @@ export function CoreDashboard() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Balance</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Days Past Due</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {delinquencyPreview.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                        No delinquencies found
-                      </td>
-                    </tr>
-                  ) : (
-                    delinquencyPreview.map((item, idx) => (
-                      <tr key={idx}>
+                      {delinquencyQueue.slice(0, 10).map((item) => (
+                        <tr key={item.leaseId}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          {item.resident_name}
+                            {item.residentName}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {item.unit_code}
+                            {item.unitCode}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600 dark:text-red-400">
                           ${item.balance.toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {item.days_past_due} days
+                            {item.daysPastDue} days
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs rounded-full ${
@@ -593,14 +698,185 @@ export function CoreDashboard() {
                             {item.category.replace('_', ' ')}
                           </span>
                         </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <button
+                              onClick={() => setSelectedLeaseId(item.leaseId)}
+                              className="px-3 py-1 bg-havyn-primary text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm"
+                            >
+                              Open Lease
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Leases Expiring */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Leases Expiring</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {expiringLeases.length} lease{expiringLeases.length !== 1 ? 's' : ''} expiring in next 90 days
+                  </p>
+                </div>
+                {expiringLeases.length > 0 && (
+                  <button
+                    onClick={() => navigate('/core/leases')}
+                    className="text-sm text-havyn-primary dark:text-green-400 hover:underline"
+                  >
+                    View All
+                  </button>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                {expiringLeases.length === 0 ? (
+                  <div className="p-12 text-center">
+                    <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">No leases expiring in the next 90 days</p>
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Resident</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Lease End</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Days Until Expiry</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
                       </tr>
-                    ))
-                  )}
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      {expiringLeases.map((lease) => {
+                        const bucket = lease.daysUntilExpiry <= 30 ? '0-30' : lease.daysUntilExpiry <= 60 ? '31-60' : '61-90';
+                        return (
+                          <tr key={lease.leaseId}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                              {lease.residentName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {lease.unitCode}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {new Date(lease.leaseEnd).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                bucket === '0-30' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
+                                bucket === '31-60' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300' :
+                                'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                              }`}>
+                                {lease.daysUntilExpiry} days ({bucket})
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <button
+                                onClick={() => setSelectedLeaseId(lease.leaseId)}
+                                className="px-3 py-1 bg-havyn-primary text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm"
+                              >
+                                Open Lease
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Vacant/Ready Units */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Vacant/Ready Units</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {vacantUnits.length} unit{vacantUnits.length !== 1 ? 's' : ''} available now
+                  </p>
+                </div>
+                {vacantUnits.length > 0 && (
+                  <button
+                    onClick={() => navigate('/core/units')}
+                    className="text-sm text-havyn-primary dark:text-green-400 hover:underline"
+                  >
+                    View All
+                  </button>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                {vacantUnits.length === 0 ? (
+                  <div className="p-12 text-center">
+                    <Home className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">No vacant units available</p>
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Property</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Available Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      {vacantUnits.map((unit) => (
+                        <tr key={unit.unitId}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                            {unit.unitCode}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {unit.propertyName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              unit.status === 'vacant' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                              unit.status === 'make-ready' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
+                              'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
+                            }`}>
+                              {unit.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {unit.availableDate ? new Date(unit.availableDate).toLocaleDateString() : 'Now'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <button
+                              onClick={() => navigate(`/core/units/${unit.unitId}`)}
+                              className="px-3 py-1 bg-havyn-primary text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm"
+                            >
+                              Open Unit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                 </tbody>
               </table>
+                )}
+              </div>
             </div>
           </div>
         </>
+      )}
+
+      {/* Lease Detail Modal */}
+      {selectedLeaseId && (
+        <LeaseDetailModal
+          leaseId={selectedLeaseId}
+          onClose={() => {
+            setSelectedLeaseId(null);
+            fetchTodaysQueue();
+          }}
+          onUpdate={() => {
+            fetchTodaysQueue();
+            fetchStats();
+          }}
+        />
       )}
     </div>
   );

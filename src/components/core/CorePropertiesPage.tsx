@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Building2, Edit, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CreatePropertyModal } from './CreatePropertyModal';
@@ -16,6 +17,7 @@ interface Property {
 
 export function CorePropertiesPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,13 +140,15 @@ export function CorePropertiesPage() {
           {properties.map((property) => (
             <div
               key={property.id}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
+              onClick={() => navigate(`/core/properties/${property.id}/units`)}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
             >
               <div className="flex justify-between items-start mb-4">
                 <Building2 className="w-8 h-8 text-havyn-primary dark:text-green-400" />
                 <div className="flex gap-2">
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setEditingProperty(property);
                       setShowCreateModal(true);
                     }}
@@ -153,7 +157,10 @@ export function CorePropertiesPage() {
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(property.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(property.id);
+                    }}
                     className="p-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                   >
                     <Trash2 className="w-4 h-4" />

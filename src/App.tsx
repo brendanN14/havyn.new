@@ -20,7 +20,13 @@ import { CoreUnitsPage } from './components/core/CoreUnitsPage';
 import { CoreLeasesPage } from './components/core/CoreLeasesPage';
 import { CoreResidentsPage } from './components/core/CoreResidentsPage';
 import { CoreSetupWizard } from './components/core/CoreSetupWizard';
-import { CoreFinancialPage } from './components/core/CoreFinancialPage';
+import { CoreInsightsPage } from './components/core/CoreInsightsPage';
+import { UnitDetailPage } from './components/core/UnitDetailPage';
+import { CorePropertyDetailPage } from './components/core/CorePropertyDetailPage';
+import { PropertyScopedUnitsPage } from './components/core/PropertyScopedUnitsPage';
+import { PropertyScopedLeasesPage } from './components/core/PropertyScopedLeasesPage';
+import { PropertyScopedResidentsPage } from './components/core/PropertyScopedResidentsPage';
+import { PropertyScopedCollectionsPage } from './components/core/PropertyScopedCollectionsPage';
 import { MainContent } from './components/MainContent';
 import { Loader2 } from 'lucide-react';
 
@@ -161,13 +167,23 @@ function CorePMSRoutes() {
       <Route path="setup" element={<CoreSetupWizard />} />
       
       {/* Core PMS pages with layout */}
-      <Route element={<CorePMSLayout />}>
+        <Route element={<CorePMSLayout />}>
         <Route path="dashboard" element={<CoreDashboard />} />
             <Route path="properties" element={<CorePropertiesPage />} />
+            <Route path="properties/:propertyId" element={<CorePropertyDetailPage />}>
+              <Route index element={<PropertyScopedUnitsPage />} />
+              <Route path="units" element={<PropertyScopedUnitsPage />} />
+              <Route path="leases" element={<PropertyScopedLeasesPage />} />
+              <Route path="residents" element={<PropertyScopedResidentsPage />} />
+              <Route path="collections" element={<PropertyScopedCollectionsPage />} />
+            </Route>
             <Route path="units" element={<CoreUnitsPage />} />
+            <Route path="units/:unitId" element={<UnitDetailPage />} />
             <Route path="leases" element={<CoreLeasesPage />} />
             <Route path="residents" element={<CoreResidentsPage />} />
-            <Route path="financial" element={<CoreFinancialPage />} />
+            <Route path="financial" element={<CoreInsightsPage />} />
+            <Route path="delinquency" element={<CoreInsightsPage />} />
+            <Route path="collections" element={<CoreInsightsPage />} />
         <Route index element={<CoreDashboard />} />
       </Route>
     </Routes>

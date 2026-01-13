@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Plus, Home, Edit, Trash2, Loader2, AlertCircle, Upload, Building2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,6 +28,7 @@ interface Unit {
 
 export function CoreUnitsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const propertyId = searchParams.get('property_id');
   
@@ -240,7 +241,8 @@ export function CoreUnitsPage() {
                   {units.map((unit) => (
                     <div
                       key={unit.id}
-                      className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:shadow-lg transition-shadow"
+                      className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => navigate(`/core/units/${unit.id}`)}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
@@ -248,7 +250,10 @@ export function CoreUnitsPage() {
                           <h3 className="font-semibold text-gray-900 dark:text-white">{unit.unit_code}</h3>
                         </div>
                         <button
-                          onClick={() => handleDelete(unit.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(unit.id);
+                          }}
                           className="p-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                         >
                           <Trash2 className="w-4 h-4" />
