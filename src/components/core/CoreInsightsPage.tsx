@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { DollarSign, AlertCircle, Loader2, Calendar, TrendingUp, FileText, Filter, MessageSquare, CheckCircle, X, StickyNote } from 'lucide-react';
+import { DollarSign, AlertCircle, Calendar, TrendingUp, Filter, MessageSquare, CheckCircle, StickyNote } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { TenantDetailDrawer } from './TenantDetailDrawer';
 import { updateLastContact, updatePromiseToPayDate, updateLedgerNotes } from '../../utils/communicationLogging';
+import { PageHeader, Card, CardBody, DataTable, Badge, Button, Spinner, EmptyState, Modal, getDelinquencyBadgeVariant } from '../ui';
 
 interface Property {
   id: string;
@@ -345,297 +346,278 @@ export function CoreInsightsPage() {
     ? Math.round(filteredDelinquencies.reduce((sum, d) => sum + d.daysPastDue, 0) / filteredDelinquencies.length)
     : 0;
 
+  const propertySelector = properties.length > 1 ? (
+    <select
+      value={propertyId || properties[0]?.id || ''}
+      onChange={(e) => navigate(`/core/financial?property_id=${e.target.value}`)}
+      className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-havyn-primary"
+    >
+      {properties.map(prop => (
+        <option key={prop.id} value={prop.id}>{prop.name}</option>
+      ))}
+    </select>
+  ) : null;
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Insights & Delinquency</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Manage delinquent accounts and tenant communications</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {properties.length > 1 && (
-            <select
-              value={propertyId || properties[0]?.id || ''}
-              onChange={(e) => navigate(`/core/financial?property_id=${e.target.value}`)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+    <div className="space-y-6">
+      <PageHeader
+        title="Insights & Delinquency"
+        subtitle="Manage delinquent accounts and tenant communications"
+        actions={
+          <>
+            {propertySelector}
+            <Button
+              variant={showFilters || categoryFilter !== 'all' || daysPastDueFilter !== 'all' ? 'primary' : 'secondary'}
+              onClick={() => setShowFilters(!showFilters)}
             >
-              {properties.map(prop => (
-                <option key={prop.id} value={prop.id}>{prop.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2 border rounded-lg transition-colors flex items-center gap-2 ${
-              showFilters || categoryFilter !== 'all' || daysPastDueFilter !== 'all'
-                ? 'border-havyn-primary bg-havyn-primary/10 text-havyn-primary dark:bg-emerald-900/20 dark:text-emerald-400'
-                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            Filters
-          </button>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            <Loader2 className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </div>
+              <Filter className="w-4 h-4" />
+              Filters
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <Spinner size="sm" />
+              ) : (
+                <Calendar className="w-4 h-4" />
+              )}
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-          <div>
-            <p className="text-red-800 dark:text-red-200 font-semibold">Error</p>
-            <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-          </div>
-        </div>
+        <Card className="border-status-danger dark:border-status-danger">
+          <CardBody>
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-status-danger dark:text-status-danger-text-dark" />
+              <div>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Error</p>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {successMessage && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-          <p className="text-green-800 dark:text-green-200">{successMessage}</p>
-        </div>
+        <Card className="border-status-success dark:border-status-success">
+          <CardBody>
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 text-status-success dark:text-status-success-text-dark" />
+              <p className="text-status-success-text dark:text-status-success-text-dark">{successMessage}</p>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {errorMessage && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-          <p className="text-red-800 dark:text-red-200">{errorMessage}</p>
-        </div>
+        <Card className="border-status-danger dark:border-status-danger">
+          <CardBody>
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-status-danger dark:text-status-danger-text-dark" />
+              <p className="text-status-danger-text dark:text-status-danger-text-dark">{errorMessage}</p>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {/* Filters */}
       {showFilters && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Category
-              </label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-              >
-                <option value="all">All Categories</option>
-                <option value="at_risk">At Risk</option>
-                <option value="delinquent">Delinquent</option>
-                <option value="severe_delinquent">Severe Delinquent</option>
-              </select>
+        <Card>
+          <CardBody>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Category
+                </label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-havyn-primary"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="at_risk">At Risk</option>
+                  <option value="delinquent">Delinquent</option>
+                  <option value="severe_delinquent">Severe Delinquent</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Days Past Due
+                </label>
+                <select
+                  value={daysPastDueFilter}
+                  onChange={(e) => setDaysPastDueFilter(e.target.value as DaysPastDueBucket)}
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-havyn-primary"
+                >
+                  <option value="all">All</option>
+                  <option value="0-5">0-5 days</option>
+                  <option value="6-29">6-29 days</option>
+                  <option value="30-59">30-59 days</option>
+                  <option value="60+">60+ days</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Days Past Due
-              </label>
-              <select
-                value={daysPastDueFilter}
-                onChange={(e) => setDaysPastDueFilter(e.target.value as DaysPastDueBucket)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-              >
-                <option value="all">All</option>
-                <option value="0-5">0-5 days</option>
-                <option value="6-29">6-29 days</option>
-                <option value="30-59">30-59 days</option>
-                <option value="60+">60+ days</option>
-              </select>
-            </div>
-          </div>
-        </div>
+          </CardBody>
+        </Card>
       )}
 
       {/* Summary Cards */}
       {filteredDelinquencies.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Delinquent</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                  ${totalDelinquent.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {filteredDelinquencies.length} account{filteredDelinquencies.length !== 1 ? 's' : ''}
-                </p>
+          <Card>
+            <CardBody>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Delinquent</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                    ${totalDelinquent.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {filteredDelinquencies.length} account{filteredDelinquencies.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <DollarSign className="w-12 h-12 text-status-danger dark:text-status-danger-text-dark" />
               </div>
-              <DollarSign className="w-12 h-12 text-red-600 dark:text-red-400" />
-            </div>
-          </div>
+            </CardBody>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Delinquent Accounts</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                  {filteredDelinquencies.length}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {allDelinquencies.length} total
-                </p>
+          <Card>
+            <CardBody>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Delinquent Accounts</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                    {filteredDelinquencies.length}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {allDelinquencies.length} total
+                  </p>
+                </div>
+                <AlertCircle className="w-12 h-12 text-status-warning dark:text-status-warning-text-dark" />
               </div>
-              <AlertCircle className="w-12 h-12 text-orange-600 dark:text-orange-400" />
-            </div>
-          </div>
+            </CardBody>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Days Past Due</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                  {avgDaysPastDue}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Average</p>
+          <Card>
+            <CardBody>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Days Past Due</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                    {avgDaysPastDue}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Average</p>
+                </div>
+                <Calendar className="w-12 h-12 text-gray-400 dark:text-gray-500" />
               </div>
-              <Calendar className="w-12 h-12 text-yellow-600 dark:text-yellow-400" />
-            </div>
-          </div>
+            </CardBody>
+          </Card>
         </div>
       )}
 
       {/* Delinquency Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Delinquent Accounts</h2>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center p-12">
-            <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
-          </div>
-        ) : filteredDelinquencies.length === 0 ? (
-          <div className="p-12 text-center">
-            <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              {allDelinquencies.length === 0 ? 'No Delinquencies' : 'No Results'}
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              {allDelinquencies.length === 0
-                ? 'All accounts are current. Great job!'
-                : 'Try adjusting your filters to see more results.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Resident
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Unit
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Balance
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Days Past Due
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Recommended Action
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Last Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Promise to Pay
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredDelinquencies.map((record) => (
-                  <tr key={record.leaseId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {record.residentName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => navigate(`/core/units/${record.unitId}`)}
-                        className="text-havyn-primary dark:text-emerald-400 hover:underline"
-                      >
-                        {record.unitCode}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600 dark:text-red-400">
-                      ${record.balance.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.daysPastDue} days
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        record.category === 'current' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                        record.category === 'at_risk' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                        record.category === 'delinquent' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300' :
-                        'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                      }`}>
-                        {record.category.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                      {record.recommendedAction}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.lastContactAt
-                        ? new Date(record.lastContactAt).toLocaleDateString()
-                        : 'Never'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.promiseToPayDate
-                        ? new Date(record.promiseToPayDate).toLocaleDateString()
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSelectedLeaseId(record.leaseId)}
-                          className="text-havyn-primary dark:text-emerald-400 hover:underline"
-                          title="Open tenant drawer"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={() => handleMarkContacted(record.leaseId)}
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                          title="Mark as contacted"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenPromiseToPay(record.leaseId, record.promiseToPayDate)}
-                          className="text-purple-600 dark:text-purple-400 hover:underline"
-                          title="Set promise-to-pay date"
-                        >
-                          <Calendar className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenNotes(record.leaseId)}
-                          className="text-gray-600 dark:text-gray-400 hover:underline"
-                          title="Log note"
-                        >
-                          <StickyNote className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardBody className="p-0">
+          <DataTable
+            columns={[
+              { key: 'residentName', label: 'Resident' },
+              {
+                key: 'unitCode',
+                label: 'Unit',
+                render: (value, row) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate(`/core/units/${row.unitId}`)}
+                    className="h-auto p-0 text-havyn-primary dark:text-emerald-400 hover:underline"
+                  >
+                    {value}
+                  </Button>
+                )
+              },
+              {
+                key: 'balance',
+                label: 'Balance',
+                className: 'text-right',
+                render: (value) => (
+                  <span className="text-sm font-medium text-status-danger dark:text-status-danger-text-dark">
+                    ${value.toLocaleString()}
+                  </span>
+                )
+              },
+              { key: 'daysPastDue', label: 'Days Past Due', render: (value) => `${value} days` },
+              {
+                key: 'category',
+                label: 'Category',
+                render: (value) => <Badge variant={getDelinquencyBadgeVariant(value)}>{value.replace('_', ' ')}</Badge>
+              },
+              { key: 'recommendedAction', label: 'Recommended Action', className: 'max-w-xs truncate' },
+              {
+                key: 'lastContactAt',
+                label: 'Last Contact',
+                render: (value) => value ? new Date(value).toLocaleDateString() : 'Never'
+              },
+              {
+                key: 'promiseToPayDate',
+                label: 'Promise to Pay',
+                render: (value) => value ? new Date(value).toLocaleDateString() : '-'
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (_, row) => (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedLeaseId(row.leaseId)}
+                      title="View details"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleMarkContacted(row.leaseId)}
+                      title="Mark as contacted"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenPromiseToPay(row.leaseId, row.promiseToPayDate)}
+                      title="Set promise to pay"
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenNotes(row.leaseId)}
+                      title="Add note"
+                    >
+                      <StickyNote className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )
+              }
+            ]}
+            data={filteredDelinquencies.map(r => ({
+              ...r,
+              actions: null // Placeholder for render function
+            }))}
+            loading={loading}
+            emptyMessage={allDelinquencies.length === 0 ? 'All accounts are current. Great job!' : 'Try adjusting your filters to see more results.'}
+            emptyIcon={<TrendingUp className="w-16 h-16 text-gray-400" />}
+          />
+        </CardBody>
+      </Card>
 
       {/* Tenant Detail Drawer */}
       {selectedLeaseId && (
@@ -657,92 +639,90 @@ export function CoreInsightsPage() {
 
       {/* Promise-to-Pay Date Modal */}
       {promiseToPayModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Set Promise-to-Pay Date</h3>
-                <button onClick={() => setPromiseToPayModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        <Modal
+          isOpen={promiseToPayModalOpen}
+          onClose={() => setPromiseToPayModalOpen(false)}
+          title="Set Promise-to-Pay Date"
+          size="md"
+          footer={
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setPromiseToPayModalOpen(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSavePromiseToPay}
+                className="flex-1"
+              >
+                Save
+              </Button>
             </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Promise-to-Pay Date
-                </label>
-                <input
-                  type="date"
-                  value={promiseToPayDate}
-                  onChange={(e) => setPromiseToPayDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Leave empty to clear the promise-to-pay date
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setPromiseToPayModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSavePromiseToPay}
-                  className="flex-1 px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-emerald-600 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Promise-to-Pay Date
+              </label>
+              <input
+                type="date"
+                value={promiseToPayDate}
+                onChange={(e) => setPromiseToPayDate(e.target.value)}
+                className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-havyn-primary"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Leave empty to clear the promise-to-pay date
+              </p>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Notes Modal */}
       {notesModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Log Note</h3>
-                <button onClick={() => setNotesModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        <Modal
+          isOpen={notesModalOpen}
+          onClose={() => setNotesModalOpen(false)}
+          title="Log Note"
+          size="lg"
+          footer={
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setNotesModalOpen(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleSaveNotes}
+                className="flex-1"
+              >
+                Save
+              </Button>
             </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Notes
-                </label>
-                <textarea
-                  value={notesText}
-                  onChange={(e) => setNotesText(e.target.value)}
-                  rows={8}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="Add notes about this tenant..."
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setNotesModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveNotes}
-                  className="flex-1 px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-emerald-600 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Notes
+              </label>
+              <textarea
+                value={notesText}
+                onChange={(e) => setNotesText(e.target.value)}
+                rows={8}
+                className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-havyn-primary"
+                placeholder="Add notes about this tenant..."
+              />
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

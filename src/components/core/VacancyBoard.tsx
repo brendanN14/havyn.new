@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Calendar, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Calendar, Eye, EyeOff, Plus, List } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { Button, Spinner } from '../ui';
 
 interface Unit {
   id: string;
@@ -18,6 +21,8 @@ interface VacancyBoardProps {
 }
 
 export function VacancyBoard({ units, property, onUpdate }: VacancyBoardProps) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [updating, setUpdating] = useState<Set<string>>(new Set());
 
   const updateUnit = async (unitId: string, field: string, value: any) => {
@@ -40,6 +45,73 @@ export function VacancyBoard({ units, property, onUpdate }: VacancyBoardProps) {
         return newSet;
       });
     }
+  };
+
+  const handleCreateLead = async (unitId: string) => {
+    if (!user?.id) {
+      alert('You must be logged in to create a lead');
+      return;
+    }
+
+    // Check if table exists before attempting insert
+    try {
+      const { checkAndCreateLeadsTable } = await import('../../utils/checkAndCreateTables');
+      const tableCheck = await checkAndCreateLeadsTable();
+      
+      if (!tableCheck.exists) {
+        alert(tableCheck.error || 'Required database tables are missing. Please run the migrations in Supabase SQL Editor:\nsupabase/migrations/20260109000001_create_core_leads.sql');
+        return;
+      }
+    } catch (checkErr: any) {
+      console.error('[VacancyBoard] Error checking tables:', checkErr);
+    }
+
+    try {
+      // Auto-assign owner_user_id and set default next_action_at (now + 2 hours)
+      const defaultNextAction = new Date();
+      defaultNextAction.setHours(defaultNextAction.getHours() + 2);
+
+      const { data, error } = await supabase
+        .from('core_leads')
+        .insert({
+          property_id: property.id,
+          unit_id: unitId,
+          owner_user_id: user.id,
+          stage: 'inquiry',
+          next_action_at: defaultNextAction.toISOString(),
+          last_touch_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        // Check if it's a "does not exist" error
+        if (error.message?.includes('does not exist') || error.code === '42P01') {
+          alert('The core_leads table does not exist. Please run the migration in Supabase SQL Editor:\nsupabase/migrations/20260109000001_create_core_leads.sql');
+          return;
+        }
+        throw error;
+      }
+
+      // Log activity
+      const { logActivity } = await import('../../utils/activityLogging');
+      await logActivity({
+        type: 'note',
+        title: 'Lead created',
+        description: 'New lead created from vacancy board',
+        leadId: data.id,
+      });
+
+      // Navigate to lead detail
+      navigate(`/core/leads/${data.id}`);
+    } catch (err: any) {
+      console.error('[VacancyBoard] Error creating lead:', err);
+      alert('Failed to create lead: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleViewLeads = (unitId: string) => {
+    navigate(`/core/leads?unit_id=${unitId}&property_id=${property.id}`);
   };
 
   const groupedUnits = {
@@ -68,7 +140,7 @@ export function VacancyBoard({ units, property, onUpdate }: VacancyBoardProps) {
                   className={`border rounded-lg p-3 ${
                     status === 'vacant' ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20' :
                     status === 'make-ready' ? 'border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20' :
-                    status === 'reserved' ? 'border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20' :
+                    status === 'reserved' ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/20' :
                     'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/20'
                   }`}
                 >
@@ -82,7 +154,7 @@ export function VacancyBoard({ units, property, onUpdate }: VacancyBoardProps) {
                       )}
                     </div>
                     {updating.has(unit.id) && (
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <Spinner size="sm" />
                     )}
                   </div>
                   
@@ -96,12 +168,14 @@ export function VacancyBoard({ units, property, onUpdate }: VacancyBoardProps) {
                         className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
                     </div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => updateUnit(unit.id, 'showable', !unit.showable)}
-                      className={`flex items-center gap-2 text-xs ${
+                      className={`text-xs ${
                         unit.showable
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-gray-400 dark:text-gray-500'
+                          ? 'text-status-success-text'
+                          : 'text-muted-text'
                       }`}
                     >
                       {unit.showable ? (
@@ -115,7 +189,7 @@ export function VacancyBoard({ units, property, onUpdate }: VacancyBoardProps) {
                           Not Showable
                         </>
                       )}
-                    </button>
+                    </Button>
                     <select
                       value={unit.status}
                       onChange={(e) => updateUnit(unit.id, 'status', e.target.value)}
@@ -126,6 +200,28 @@ export function VacancyBoard({ units, property, onUpdate }: VacancyBoardProps) {
                       <option value="reserved">Reserved</option>
                       <option value="occupied">Occupied</option>
                     </select>
+                    {(status === 'vacant' || status === 'make-ready') && (
+                      <div className="flex gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleCreateLead(unit.id)}
+                          className="flex-1 text-xs"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Create Lead
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleViewLeads(unit.id)}
+                          className="flex-1 text-xs"
+                        >
+                          <List className="w-3 h-3" />
+                          View Leads
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

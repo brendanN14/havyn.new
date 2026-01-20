@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Loader2, Upload } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { Modal, Button, Spinner, Card, CardBody } from '../ui';
 
 interface BulkAddUnitsModalProps {
   propertyId: string;
@@ -44,6 +45,7 @@ export function BulkAddUnitsModal({ propertyId, onClose, onSuccess }: BulkAddUni
         return;
       }
 
+      const today = new Date().toISOString().split('T')[0];
       const unitsToInsert = unitCodes.map(unitCode => ({
         property_id: propertyId,
         unit_code: unitCode,
@@ -52,7 +54,8 @@ export function BulkAddUnitsModal({ propertyId, onClose, onSuccess }: BulkAddUni
         sqft: defaultSqft || null,
         asking_rent: defaultRent || null,
         status: 'vacant' as const,
-        showable: true
+        showable: true,
+        available_date: today // Set available_date for vacant units
       }));
 
       const { error: insertError } = await supabase
@@ -77,24 +80,52 @@ export function BulkAddUnitsModal({ propertyId, onClose, onSuccess }: BulkAddUni
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Bulk Add Units</h2>
-          <button
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Bulk Add Units"
+      size="lg"
+      footer={
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="flex-1"
           >
-            <X className="w-5 h-5" />
-          </button>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={(e) => {
+              e.preventDefault();
+              handleSubmit(e as any);
+            }}
+            disabled={loading}
+            className="flex-1"
+          >
+            {loading ? (
+              <>
+                <Spinner size="sm" />
+                Adding Units...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                Add Units
+              </>
+            )}
+          </Button>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-800 dark:text-red-200">
-              {error}
-            </div>
-          )}
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <Card className="border-status-danger">
+            <CardBody>
+              <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm">{error}</p>
+            </CardBody>
+          </Card>
+        )}
 
           <div>
             <label htmlFor="bulkInput" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -170,36 +201,8 @@ export function BulkAddUnitsModal({ propertyId, onClose, onSuccess }: BulkAddUni
               />
             </div>
           </div>
-        </form>
-
-        <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1 px-4 py-2 bg-havyn-primary text-white rounded-md hover:bg-havyn-dark disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Adding Units...
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4" />
-                Add Units
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }
 

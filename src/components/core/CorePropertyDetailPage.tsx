@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { Building2, Home, FileText, Users, DollarSign, ArrowLeft, Loader2, AlertCircle, Settings } from 'lucide-react';
+import { Building2, Home, FileText, Users, DollarSign, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAmountOwed } from '../../utils/financialSummary';
+import { PageHeader, Breadcrumb, Tabs, Tab, StatCard, Spinner, Card, CardBody } from '../ui';
 
 export function CorePropertyDetailPage() {
   const { propertyId } = useParams<{ propertyId: string }>();
@@ -136,28 +137,31 @@ export function CorePropertyDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
 
   if (error || !property) {
     return (
-      <div className="p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-          <div>
-            <p className="text-red-800 dark:text-red-200 font-semibold">Error</p>
-            <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error || 'Property not found'}</p>
-          </div>
-        </div>
-        <button
-          onClick={() => navigate('/core/properties')}
-          className="mt-4 flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Properties
-        </button>
+      <div className="space-y-6">
+        <Breadcrumb
+          items={[
+            { label: 'Properties', onClick: () => navigate('/core/properties') },
+            { label: error ? 'Error' : 'Property not found' }
+          ]}
+        />
+        <Card className="border-status-danger">
+          <CardBody>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-status-danger flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Error</p>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error || 'Property not found'}</p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
       </div>
     );
   }
@@ -171,85 +175,67 @@ export function CorePropertyDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => navigate('/core/properties')}
-          className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{property.name}</h1>
-          {property.address_line1 && (
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              {property.address_line1}
-              {property.city && `, ${property.city}`}
-              {property.state && ` ${property.state}`}
-              {property.zip_code && ` ${property.zip_code}`}
-            </p>
-          )}
-        </div>
-      </div>
+      <Breadcrumb
+        items={[
+          { label: 'Properties', onClick: () => navigate('/core/properties') },
+          { label: property.name }
+        ]}
+      />
+
+      <PageHeader
+        title={property.name}
+        subtitle={
+          property.address_line1
+            ? `${property.address_line1}${property.city ? `, ${property.city}` : ''}${property.state ? ` ${property.state}` : ''}${property.zip_code ? ` ${property.zip_code}` : ''}`
+            : undefined
+        }
+      />
 
       {/* KPI Strip */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Units</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.totalUnits}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Vacant</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.vacantUnits}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Occupied</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.occupiedUnits}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Leases</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.activeLeases}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Amount Owed</p>
-          <p className={`text-2xl font-bold mt-1 ${stats.amountOwed > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-            ${(stats.amountOwed / 1000).toFixed(1)}k
-          </p>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+        <StatCard
+          label="Total Units"
+          value={stats.totalUnits}
+          icon={<Home className="w-12 h-12" />}
+        />
+        <StatCard
+          label="Vacant"
+          value={stats.vacantUnits}
+          icon={<Building2 className="w-12 h-12" />}
+        />
+        <StatCard
+          label="Occupied"
+          value={stats.occupiedUnits}
+          icon={<Users className="w-12 h-12" />}
+        />
+        <StatCard
+          label="Active Leases"
+          value={stats.activeLeases}
+          icon={<FileText className="w-12 h-12" />}
+        />
+        <StatCard
+          label="Amount Owed"
+          value={`$${stats.amountOwed >= 1000 
+            ? (stats.amountOwed / 1000).toFixed(1) + 'k'
+            : stats.amountOwed.toLocaleString()}`}
+          icon={<DollarSign className="w-12 h-12" />}
+        />
       </div>
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          <nav className="flex -mb-px">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabClick(tab.id)}
-                  className={`
-                    flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors
-                    ${isActive
-                      ? 'border-havyn-primary text-havyn-primary dark:text-emerald-400 dark:border-emerald-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                    }
-                  `}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
+      <Card>
+        <div className="p-6 pb-0">
+          <Tabs value={activeTab} onChange={handleTabClick}>
+            <Tab value="units" label="Units" icon={<Home className="w-4 h-4" />} />
+            <Tab value="leases" label="Leases" icon={<FileText className="w-4 h-4" />} />
+            <Tab value="residents" label="Residents" icon={<Users className="w-4 h-4" />} />
+            <Tab value="collections" label="Collections" icon={<DollarSign className="w-4 h-4" />} />
+          </Tabs>
         </div>
-
-        {/* Tab Content */}
-        <div className="p-6">
+        <CardBody>
           <Outlet />
-        </div>
-      </div>
+        </CardBody>
+      </Card>
     </div>
   );
 }

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Building2, Edit, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Building2, Edit, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CreatePropertyModal } from './CreatePropertyModal';
+import { PageHeader, Card, CardBody, EmptyState, Spinner, Button } from '../ui';
 
 interface Property {
   id: string;
@@ -82,102 +83,109 @@ export function CorePropertiesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Properties</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Manage your property portfolio</p>
-        </div>
-        <button
-          onClick={() => {
-            setEditingProperty(null);
-            setShowCreateModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Create Property
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Properties"
+        subtitle="Manage your property portfolio"
+        actions={
+          <Button
+            onClick={() => {
+              setEditingProperty(null);
+              setShowCreateModal(true);
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            Create Property
+          </Button>
+        }
+      />
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-          <div>
-            <p className="text-red-800 dark:text-red-200 font-semibold">Database Error</p>
-            <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-            {error.includes('migration') && (
-              <p className="text-red-600 dark:text-red-400 text-xs mt-2">
-                To fix: Run the migration file <code className="bg-red-100 dark:bg-red-900/30 px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
-              </p>
-            )}
-          </div>
-        </div>
+        <Card className="border-status-danger">
+          <CardBody>
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Database Error</p>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+                {error.includes('migration') && (
+                  <p className="text-status-danger-text dark:text-status-danger-text-dark text-xs mt-2">
+                    To fix: Run the migration file <code className="bg-status-danger-bg dark:bg-status-danger-bg-dark px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {properties.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
-          <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No properties yet</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Create your first property to get started with Core PMS
-          </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
-          >
-            Create Property
-          </button>
-        </div>
+        <EmptyState
+          message="No properties yet"
+          description="Create your first property to get started with Core PMS"
+          icon={<Building2 className="w-16 h-16 text-gray-400" />}
+          action={
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="w-4 h-4" />
+              Create Property
+            </Button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {properties.map((property) => (
-            <div
+            <Card
               key={property.id}
               onClick={() => navigate(`/core/properties/${property.id}/units`)}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
+              className="cursor-pointer hover:shadow-lg transition-shadow"
             >
-              <div className="flex justify-between items-start mb-4">
-                <Building2 className="w-8 h-8 text-havyn-primary dark:text-green-400" />
-                <div className="flex gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingProperty(property);
-                      setShowCreateModal(true);
-                    }}
-                    className="p-1 text-gray-600 dark:text-gray-400 hover:text-havyn-primary dark:hover:text-green-400"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(property.id);
-                    }}
-                    className="p-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+              <CardBody>
+                <div className="flex justify-between items-start mb-4">
+                  <Building2 className="w-8 h-8 text-gray-600 dark:text-gray-400" />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingProperty(property);
+                        setShowCreateModal(true);
+                      }}
+                      aria-label="Edit property"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(property.id);
+                      }}
+                      aria-label="Delete property"
+                      className="text-status-danger hover:text-status-danger"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                {property.name}
-              </h3>
-              {(property.address_line1 || property.city || property.state) && (
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {[property.address_line1, property.city, property.state, property.zip_code]
-                    .filter(Boolean)
-                    .join(', ')}
-                </p>
-              )}
-            </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  {property.name}
+                </h3>
+                {(property.address_line1 || property.city || property.state) && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {[property.address_line1, property.city, property.state, property.zip_code]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </p>
+                )}
+              </CardBody>
+            </Card>
           ))}
         </div>
       )}

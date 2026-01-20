@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { DollarSign, AlertCircle, Loader2, Calendar, TrendingUp, FileText } from 'lucide-react';
+import { DollarSign, AlertCircle, Calendar, TrendingUp } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { LeaseDetailModal } from './LeaseDetailModal';
+import { PageHeader, Card, CardBody, DataTable, Badge, Button, Spinner, EmptyState, StatCard, getDelinquencyBadgeVariant } from '../ui';
 
 interface Property {
   id: string;
@@ -161,178 +162,143 @@ export function CoreFinancialPage() {
     : 0;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Management</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Track delinquencies and manage payments</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {properties.length > 1 && (
-            <select
-              value={propertyId || properties[0]?.id || ''}
-              onChange={(e) => navigate(`/core/financial?property_id=${e.target.value}`)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+    <div className="space-y-6 p-6">
+      <PageHeader
+        title="Financial Management"
+        subtitle="Track delinquencies and manage payments"
+        actions={
+          <div className="flex items-center gap-3">
+            {properties.length > 1 && (
+              <select
+                value={propertyId || properties[0]?.id || ''}
+                onChange={(e) => navigate(`/core/financial?property_id=${e.target.value}`)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                {properties.map(prop => (
+                  <option key={prop.id} value={prop.id}>{prop.name}</option>
+                ))}
+              </select>
+            )}
+            <Button
+              variant="secondary"
+              onClick={handleRefresh}
+              disabled={refreshing}
             >
-              {properties.map(prop => (
-                <option key={prop.id} value={prop.id}>{prop.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            <Loader2 className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </div>
+              <Spinner size="sm" className={refreshing ? '' : 'hidden'} />
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-          <div>
-            <p className="text-red-800 dark:text-red-200 font-semibold">Error</p>
-            <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-          </div>
-        </div>
+        <Card className="border-status-danger">
+          <CardBody>
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-status-danger flex-shrink-0" />
+              <div>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Error</p>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {/* Summary Cards */}
       {delinquencies.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Delinquent</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                  ${totalDelinquent.toLocaleString()}
-                </p>
-              </div>
-              <DollarSign className="w-12 h-12 text-red-600 dark:text-red-400" />
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Delinquent Accounts</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                  {delinquencies.length}
-                </p>
-              </div>
-              <AlertCircle className="w-12 h-12 text-orange-600 dark:text-orange-400" />
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Days Past Due</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-                  {avgDaysPastDue}
-                </p>
-              </div>
-              <Calendar className="w-12 h-12 text-yellow-600 dark:text-yellow-400" />
-            </div>
-          </div>
+          <StatCard
+            label="Total Delinquent"
+            value={`$${totalDelinquent.toLocaleString()}`}
+            icon={<DollarSign className="w-12 h-12" />}
+            valueColorClass="text-status-danger dark:text-status-danger-text-dark"
+          />
+          <StatCard
+            label="Delinquent Accounts"
+            value={delinquencies.length}
+            icon={<AlertCircle className="w-12 h-12" />}
+          />
+          <StatCard
+            label="Avg Days Past Due"
+            value={avgDaysPastDue}
+            icon={<Calendar className="w-12 h-12" />}
+          />
         </div>
       )}
 
       {/* Delinquency Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Delinquent Accounts</h2>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center p-12">
-            <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
-          </div>
-        ) : delinquencies.length === 0 ? (
-          <div className="p-12 text-center">
-            <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Delinquencies</h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              All accounts are current. Great job!
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Resident
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Unit
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Balance
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Days Past Due
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Last Payment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {delinquencies.map((record) => (
-                  <tr key={record.leaseId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {record.residentName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.unitCode}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600 dark:text-red-400">
-                      ${record.balance.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.daysPastDue} days
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        record.category === 'current' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                        record.category === 'at_risk' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                        record.category === 'delinquent' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300' :
-                        'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                      }`}>
-                        {record.category.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.lastPaymentAt
-                        ? new Date(record.lastPaymentAt).toLocaleDateString()
-                        : 'Never'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => setSelectedLeaseId(record.leaseId)}
-                        className="text-havyn-primary dark:text-emerald-400 hover:underline"
-                      >
-                        View Lease
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardBody className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center p-12">
+              <Spinner size="lg" />
+            </div>
+          ) : (
+            <DataTable
+              columns={[
+                {
+                  key: 'residentName',
+                  label: 'Resident',
+                  render: (value) => <span className="font-medium text-gray-900 dark:text-white">{value}</span>
+                },
+                {
+                  key: 'unitCode',
+                  label: 'Unit',
+                  render: (value) => <span className="text-sm text-gray-600 dark:text-gray-400">{value}</span>
+                },
+                {
+                  key: 'balance',
+                  label: 'Balance',
+                  className: 'text-right',
+                  render: (value) => (
+                    <span className="text-sm font-medium text-status-danger dark:text-status-danger-text-dark tabular-nums">
+                      ${value.toLocaleString()}
+                    </span>
+                  )
+                },
+                {
+                  key: 'daysPastDue',
+                  label: 'Days Past Due',
+                  render: (value) => <span className="text-sm text-gray-600 dark:text-gray-400">{value} days</span>
+                },
+                {
+                  key: 'category',
+                  label: 'Category',
+                  render: (value) => <Badge variant={getDelinquencyBadgeVariant(value)}>{String(value).replace('_', ' ')}</Badge>
+                },
+                {
+                  key: 'lastPaymentAt',
+                  label: 'Last Payment',
+                  render: (value) => (
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {value ? new Date(value).toLocaleDateString() : 'Never'}
+                    </span>
+                  )
+                },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  render: (_, row) => (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedLeaseId(row.leaseId)}
+                    >
+                      View Lease
+                    </Button>
+                  )
+                }
+              ]}
+              data={delinquencies}
+              emptyMessage="No Delinquencies"
+              emptyIcon={<TrendingUp className="w-16 h-16 text-gray-400" />}
+              emptyDescription="All accounts are current. Great job!"
+              stickyHeader
+            />
+          )}
+        </CardBody>
+      </Card>
 
       {/* Lease Detail Modal */}
       {selectedLeaseId && (

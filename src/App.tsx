@@ -19,6 +19,7 @@ import { CorePropertiesPage } from './components/core/CorePropertiesPage';
 import { CoreUnitsPage } from './components/core/CoreUnitsPage';
 import { CoreLeasesPage } from './components/core/CoreLeasesPage';
 import { CoreResidentsPage } from './components/core/CoreResidentsPage';
+import { CoreLeadsPage } from './components/core/CoreLeadsPage';
 import { CoreSetupWizard } from './components/core/CoreSetupWizard';
 import { CoreInsightsPage } from './components/core/CoreInsightsPage';
 import { UnitDetailPage } from './components/core/UnitDetailPage';
@@ -181,6 +182,8 @@ function CorePMSRoutes() {
             <Route path="units/:unitId" element={<UnitDetailPage />} />
             <Route path="leases" element={<CoreLeasesPage />} />
             <Route path="residents" element={<CoreResidentsPage />} />
+            <Route path="leads" element={<CoreLeadsPage />} />
+            <Route path="leads/:leadId" element={<CoreLeadsPage />} />
             <Route path="financial" element={<CoreInsightsPage />} />
             <Route path="delinquency" element={<CoreInsightsPage />} />
             <Route path="collections" element={<CoreInsightsPage />} />

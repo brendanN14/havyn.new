@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Plus, Home, Edit, Trash2, Loader2, AlertCircle, Upload, Building2 } from 'lucide-react';
+import { Plus, Home, Edit, Trash2, Loader2, AlertCircle, Upload, Building2, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BulkAddUnitsModal } from './BulkAddUnitsModal';
 import { VacancyBoard } from './VacancyBoard';
+import { checkInvalidUnitStatus, fixUnitAvailability } from '../../utils/integrityChecks';
+import { Button, Card, CardBody, Badge, getUnitStatusBadgeVariant, PageHeader, Spinner, EmptyState } from '../ui';
 
 interface Property {
   id: string;
@@ -38,6 +40,8 @@ export function CoreUnitsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'vacancy'>('list');
+  const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
+  const [fixingAvailability, setFixingAvailability] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -51,6 +55,58 @@ export function CoreUnitsPage() {
       fetchUnits(properties[0].id);
     }
   }, [propertyId, properties]);
+
+  useEffect(() => {
+    checkAvailabilityHealth();
+  }, [units]);
+
+  const checkAvailabilityHealth = async () => {
+    const issues = await checkInvalidUnitStatus();
+    setAvailabilityIssues(issues.filter(i => i.type === 'invalid_unit_status'));
+  };
+
+  const handleFixAvailability = async () => {
+    setFixingAvailability(true);
+    try {
+      // Fix occupied units with showable=true
+      const occupiedIssues = availabilityIssues.filter(i => 
+        i.description.includes('occupied but showable=true')
+      );
+      for (const issue of occupiedIssues) {
+        if (issue.unitId) {
+          await supabase
+            .from('core_units')
+            .update({ showable: false })
+            .eq('id', issue.unitId);
+        }
+      }
+
+      // Fix vacant/ready units without available_date
+      const dateIssues = availabilityIssues.filter(i => 
+        i.description.includes('missing available_date')
+      );
+      const today = new Date().toISOString().split('T')[0];
+      for (const issue of dateIssues) {
+        if (issue.unitId) {
+          await supabase
+            .from('core_units')
+            .update({ available_date: today })
+            .eq('id', issue.unitId);
+        }
+      }
+
+      // Refresh
+      if (propertyId) {
+        fetchUnits(propertyId);
+      } else if (properties.length > 0) {
+        fetchUnits(properties[0].id);
+      }
+    } catch (err) {
+      console.error('Error fixing availability:', err);
+    } finally {
+      setFixingAvailability(false);
+    }
+  };
 
   const fetchProperties = async () => {
     if (!user?.id) return;
@@ -137,81 +193,121 @@ export function CoreUnitsPage() {
   if (loading && !selectedProperty) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Units</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Manage units and vacancy status</p>
-        </div>
-        <div className="flex gap-3">
-          {selectedProperty && (
-            <>
-              <button
+      <PageHeader
+        title="Units"
+        subtitle="Manage units and vacancy status"
+        actions={
+          selectedProperty && (
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
                 onClick={() => setViewMode(viewMode === 'list' ? 'vacancy' : 'list')}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 {viewMode === 'list' ? 'Vacancy Board' : 'List View'}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setShowBulkAdd(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
               >
-                <Upload className="w-5 h-5" />
+                <Upload className="w-4 h-4" />
                 Bulk Add Units
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+              </Button>
+            </div>
+          )
+        }
+      />
 
       {properties.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
-          <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No properties yet</h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            Create a property first before adding units
-          </p>
-        </div>
+        <EmptyState
+          message="No properties yet"
+          description="Create a property first before adding units"
+          icon={<Building2 className="w-16 h-16 text-gray-400" />}
+        />
       ) : (
         <>
           <div className="flex gap-2">
             {properties.map((prop) => (
-              <button
+              <Button
                 key={prop.id}
+                variant={(propertyId || properties[0]?.id) === prop.id ? 'primary' : 'secondary'}
                 onClick={() => {
                   fetchUnits(prop.id);
                   window.history.pushState({}, '', `/core/units?property_id=${prop.id}`);
                 }}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  (propertyId || properties[0]?.id) === prop.id
-                    ? 'bg-havyn-primary text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
               >
                 {prop.name}
-              </button>
+              </Button>
             ))}
           </div>
 
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-              <div>
-                <p className="text-red-800 dark:text-red-200 font-semibold">Database Error</p>
-                <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-                {error.includes('migration') && (
-                  <p className="text-red-600 dark:text-red-400 text-xs mt-2">
-                    To fix: Run the migration file <code className="bg-red-100 dark:bg-red-900/30 px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
-                  </p>
-                )}
-              </div>
-            </div>
+            <Card className="border-status-danger">
+              <CardBody>
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-status-danger flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Database Error</p>
+                    <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+                    {error.includes('migration') && (
+                      <p className="text-status-danger-text dark:text-status-danger-text-dark text-xs mt-2">
+                        To fix: Run the migration file <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Availability Health Check Banner */}
+          {availabilityIssues.length > 0 && (
+            <Card className="border-status-warning dark:border-status-warning">
+              <CardBody>
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-status-warning dark:text-status-warning-text-dark flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-status-warning-text dark:text-status-warning-text-dark font-semibold mb-1">
+                      Unit Availability Issues Found
+                    </p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                      {availabilityIssues.length} unit{availabilityIssues.length !== 1 ? 's' : ''} have invalid status combinations:
+                    </p>
+                    <ul className="text-sm text-gray-600 dark:text-gray-400 list-disc list-inside mb-3 space-y-1">
+                      {availabilityIssues.slice(0, 3).map((issue, idx) => (
+                        <li key={idx}>{issue.description}</li>
+                      ))}
+                      {availabilityIssues.length > 3 && (
+                        <li>...and {availabilityIssues.length - 3} more</li>
+                      )}
+                    </ul>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleFixAvailability}
+                      disabled={fixingAvailability}
+                    >
+                      {fixingAvailability ? (
+                        <>
+                          <Spinner size="sm" />
+                          Fixing...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Fix Automatically
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
           )}
 
           {viewMode === 'vacancy' ? (
@@ -223,19 +319,17 @@ export function CoreUnitsPage() {
           ) : (
             <>
               {units.length === 0 ? (
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
-                  <Home className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No units yet</h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6">
-                    Add units to this property to get started
-                  </p>
-                  <button
-                    onClick={() => setShowBulkAdd(true)}
-                    className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
-                  >
-                    Add Units
-                  </button>
-                </div>
+                <EmptyState
+                  message="No units yet"
+                  description="Add units to this property to get started"
+                  icon={<Home className="w-16 h-16 text-gray-400" />}
+                  action={
+                    <Button onClick={() => setShowBulkAdd(true)}>
+                      <Upload className="w-4 h-4" />
+                      Add Units
+                    </Button>
+                  }
+                />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {units.map((unit) => (
@@ -249,15 +343,18 @@ export function CoreUnitsPage() {
                           <Home className="w-5 h-5 text-havyn-primary dark:text-green-400" />
                           <h3 className="font-semibold text-gray-900 dark:text-white">{unit.unit_code}</h3>
                         </div>
-                        <button
+                        <Button
+                          variant="icon"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDelete(unit.id);
                           }}
-                          className="p-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                          aria-label="Delete unit"
+                          className="text-status-danger hover:text-status-danger"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </button>
+                        </Button>
                       </div>
                       <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                         {(unit.beds || unit.baths) && (
@@ -274,14 +371,9 @@ export function CoreUnitsPage() {
                             Occupied by: {unit.leases.find((l: any) => l.status === 'active')?.primary_resident?.full_name || 'Unknown'}
                           </p>
                         )}
-                        <p className={`inline-block px-2 py-1 rounded text-xs ${
-                          unit.status === 'occupied' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                          unit.status === 'vacant' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
-                          unit.status === 'make-ready' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                          'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
-                        }`}>
+                        <Badge variant={getUnitStatusBadgeVariant(unit.status)}>
                           {unit.status}
-                        </p>
+                        </Badge>
                       </div>
                     </div>
                   ))}

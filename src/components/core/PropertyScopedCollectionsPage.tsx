@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { DollarSign, Loader2, AlertCircle, Filter, MessageSquare, CheckCircle, Calendar, StickyNote } from 'lucide-react';
+import { Filter, CheckCircle, Calendar, StickyNote, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { TenantDetailDrawer } from './TenantDetailDrawer';
 import { updateLastContact, updatePromiseToPayDate, updateLedgerNotes } from '../../utils/communicationLogging';
 import { getAmountOwed } from '../../utils/financialSummary';
+import { PageHeader, Card, CardBody, DataTable, Badge, Button, Spinner, EmptyState, Modal, getDelinquencyBadgeVariant } from '../ui';
 
 interface DelinquencyRecord {
   leaseId: string;
@@ -289,67 +290,74 @@ export function PropertyScopedCollectionsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-2">
-        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-        <div>
-          <p className="text-red-800 dark:text-red-200 font-semibold">Error</p>
-          <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-        </div>
-      </div>
+      <Card className="border-status-danger">
+        <CardBody>
+          <div className="flex items-start gap-3">
+            <div>
+              <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Error</p>
+              <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Collections</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {filteredDelinquencies.length} delinquent account{filteredDelinquencies.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            <Filter className="w-4 h-4" />
-            Filters
-          </button>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Collections"
+        subtitle={`${filteredDelinquencies.length} delinquent account${filteredDelinquencies.length !== 1 ? 's' : ''}`}
+        actions={
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
       {/* Messages */}
       {successMessage && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <p className="text-green-800 dark:text-green-200 text-sm">{successMessage}</p>
-        </div>
+        <Card className="border-status-success">
+          <CardBody>
+            <p className="text-status-success-text dark:text-status-success-text-dark text-sm">{successMessage}</p>
+          </CardBody>
+        </Card>
       )}
 
       {errorMessage && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-800 dark:text-red-200 text-sm">{errorMessage}</p>
-        </div>
+        <Card className="border-status-danger">
+          <CardBody>
+            <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm">{errorMessage}</p>
+          </CardBody>
+        </Card>
       )}
 
       {/* Filters */}
       {showFilters && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardBody>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Category
@@ -383,137 +391,160 @@ export function PropertyScopedCollectionsPage() {
               </select>
             </div>
           </div>
-        </div>
+          </CardBody>
+        </Card>
       )}
 
       {/* Delinquency Table */}
-      {filteredDelinquencies.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
-          <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">All accounts are current</h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            No delinquent accounts for this property
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Unit
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Resident
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Amount Owed
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Days Past Due
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Last Payment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Promise-to-Pay
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Last Contacted
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredDelinquencies.map((record) => (
-                  <tr key={record.leaseId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => navigate(`/core/units/${record.unitId}`)}
-                        className="text-havyn-primary dark:text-emerald-400 hover:underline"
-                      >
-                        {record.unitCode}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {record.residentName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600 dark:text-red-400">
-                      ${record.balance.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.daysPastDue} days
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        record.category === 'current' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                        record.category === 'at_risk' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                        record.category === 'delinquent' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300' :
-                        'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                      }`}>
-                        {record.category.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.lastPaymentAt
-                        ? new Date(record.lastPaymentAt).toLocaleDateString()
-                        : 'Never'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.promiseToPayDate
-                        ? new Date(record.promiseToPayDate).toLocaleDateString()
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {record.lastContactAt
-                        ? new Date(record.lastContactAt).toLocaleDateString()
-                        : 'Never'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSelectedLeaseId(record.leaseId)}
-                          className="text-havyn-primary dark:text-emerald-400 hover:underline"
-                          title="Open tenant drawer"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={() => handleMarkContacted(record.leaseId)}
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                          title="Mark as contacted"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenPromiseToPay(record.leaseId, record.promiseToPayDate)}
-                          className="text-purple-600 dark:text-purple-400 hover:underline"
-                          title="Set promise-to-pay date"
-                        >
-                          <Calendar className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenNotes(record.leaseId)}
-                          className="text-gray-600 dark:text-gray-400 hover:underline"
-                          title="Log note"
-                        >
-                          <StickyNote className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <Card>
+        <CardBody className="p-0">
+          <DataTable
+            columns={[
+              {
+                key: 'unit',
+                label: 'Unit',
+                render: (_, row) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/core/units/${row.unitId}`);
+                    }}
+                    className="h-auto p-0 font-normal"
+                  >
+                    {row.unit}
+                  </Button>
+                )
+              },
+              {
+                key: 'resident',
+                label: 'Resident',
+                render: (value) => <span className="font-medium text-gray-900 dark:text-white">{value}</span>
+              },
+              {
+                key: 'balance',
+                label: 'Amount Owed',
+                className: 'text-right',
+                render: (value) => (
+                  <span className="text-sm font-medium text-gray-900 dark:text-white tabular-nums">
+                    ${value.toLocaleString()}
+                  </span>
+                )
+              },
+              {
+                key: 'daysPastDue',
+                label: 'Days Past Due',
+                render: (value) => <span className="text-sm text-gray-600 dark:text-gray-400">{value}</span>
+              },
+              {
+                key: 'category',
+                label: 'Category',
+                render: (value) => <Badge variant={getDelinquencyBadgeVariant(value)}>{String(value).replace('_', ' ')}</Badge>
+              },
+              {
+                key: 'lastPayment',
+                label: 'Last Payment',
+                render: (value) => (
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {value === 'Never' ? value : new Date(value).toLocaleDateString()}
+                  </span>
+                )
+              },
+              {
+                key: 'promiseToPay',
+                label: 'Promise-to-Pay',
+                render: (value) => (
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {value === '-' ? value : new Date(value).toLocaleDateString()}
+                  </span>
+                )
+              },
+              {
+                key: 'lastContacted',
+                label: 'Last Contacted',
+                render: (value) => (
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {value === 'Never' ? value : new Date(value).toLocaleDateString()}
+                  </span>
+                )
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (_, row) => (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedLeaseId(row.leaseId);
+                      }}
+                      title="Open tenant drawer"
+                    >
+                      View
+                    </Button>
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkContacted(row.leaseId);
+                      }}
+                      title="Mark as contacted"
+                      aria-label="Mark as contacted"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenPromiseToPay(row.leaseId, row.promiseToPayDate);
+                      }}
+                      title="Set promise-to-pay date"
+                      aria-label="Set promise-to-pay date"
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="icon"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenNotes(row.leaseId);
+                      }}
+                      title="Log note"
+                      aria-label="Log note"
+                    >
+                      <StickyNote className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )
+              }
+            ]}
+            data={filteredDelinquencies.map(record => ({
+              unit: record.unitCode,
+              unitId: record.unitId,
+              resident: record.residentName,
+              balance: record.balance,
+              daysPastDue: `${record.daysPastDue} days`,
+              category: record.category,
+              lastPayment: record.lastPaymentAt ? record.lastPaymentAt : 'Never',
+              promiseToPay: record.promiseToPayDate ? record.promiseToPayDate : '-',
+              lastContacted: record.lastContactAt ? record.lastContactAt : 'Never',
+              leaseId: record.leaseId,
+              promiseToPayDate: record.promiseToPayDate
+            }))}
+            loading={loading}
+            emptyMessage="All accounts are current"
+            emptyIcon={<CheckCircle className="w-16 h-16 text-gray-400 dark:text-gray-500" />}
+            stickyHeader
+          />
+        </CardBody>
+      </Card>
 
       {/* Tenant Detail Drawer */}
       {selectedLeaseId && (
@@ -531,87 +562,101 @@ export function PropertyScopedCollectionsPage() {
 
       {/* Promise-to-Pay Date Modal */}
       {promiseToPayModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Set Promise-to-Pay Date</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Promise Date
-                  </label>
-                  <input
-                    type="date"
-                    value={promiseToPayDate}
-                    onChange={(e) => setPromiseToPayDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => {
-                      setPromiseToPayModalOpen(false);
-                      setPromiseToPayLeaseId(null);
-                      setPromiseToPayDate('');
-                    }}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSavePromiseToPay}
-                    className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
+        <Modal
+          isOpen={promiseToPayModalOpen}
+          onClose={() => {
+            setPromiseToPayModalOpen(false);
+            setPromiseToPayLeaseId(null);
+            setPromiseToPayDate('');
+          }}
+          title="Set Promise-to-Pay Date"
+          size="md"
+          footer={
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setPromiseToPayModalOpen(false);
+                  setPromiseToPayLeaseId(null);
+                  setPromiseToPayDate('');
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSavePromiseToPay}
+                className="flex-1"
+              >
+                Save
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Promise Date
+              </label>
+              <input
+                type="date"
+                value={promiseToPayDate}
+                onChange={(e) => setPromiseToPayDate(e.target.value)}
+                className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-havyn-primary"
+              />
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Notes Modal */}
       {notesModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Note</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Notes
-                  </label>
-                  <textarea
-                    value={notesText}
-                    onChange={(e) => setNotesText(e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Add internal notes about this account..."
-                  />
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => {
-                      setNotesModalOpen(false);
-                      setNotesLeaseId(null);
-                      setNotesText('');
-                    }}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveNotes}
-                    className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
+        <Modal
+          isOpen={notesModalOpen}
+          onClose={() => {
+            setNotesModalOpen(false);
+            setNotesLeaseId(null);
+            setNotesText('');
+          }}
+          title="Add Note"
+          size="md"
+          footer={
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setNotesModalOpen(false);
+                  setNotesLeaseId(null);
+                  setNotesText('');
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveNotes}
+                className="flex-1"
+              >
+                Save
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Notes
+              </label>
+              <textarea
+                value={notesText}
+                onChange={(e) => setNotesText(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-havyn-primary"
+                placeholder="Add internal notes about this account..."
+              />
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

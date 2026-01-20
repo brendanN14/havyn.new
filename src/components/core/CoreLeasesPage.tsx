@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, FileText, Loader2, AlertCircle, Calendar, DollarSign } from 'lucide-react';
+import { Plus, FileText, AlertCircle } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CreateLeaseModal } from './CreateLeaseModal';
 import { LeaseDetailModal } from './LeaseDetailModal';
+import { PageHeader, Card, CardBody, DataTable, Badge, Button, Spinner, EmptyState, getLeaseStatusBadgeVariant } from '../ui';
 
 interface Property {
   id: string;
@@ -165,150 +166,144 @@ export function CoreLeasesPage() {
   if (loading && !selectedProperty) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Leases</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Manage lease agreements and payments</p>
-        </div>
-        <div className="flex gap-3">
-          {selectedProperty && (
-            <>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
-              >
-                <Plus className="w-5 h-5" />
-                Create Lease
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Leases"
+        subtitle="Manage lease agreements and payments"
+        actions={
+          selectedProperty && (
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="w-4 h-4" />
+              Create Lease
+            </Button>
+          )
+        }
+      />
 
       {properties.length > 1 && (
         <div className="flex gap-2">
           {properties.map((prop) => (
-            <button
+            <Button
               key={prop.id}
+              variant={(propertyId || properties[0]?.id) === prop.id ? 'primary' : 'secondary'}
               onClick={() => {
                 fetchLeases(prop.id);
                 navigate(`/core/leases?property_id=${prop.id}`);
               }}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                (propertyId || properties[0]?.id) === prop.id
-                  ? 'bg-havyn-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
             >
               {prop.name}
-            </button>
+            </Button>
           ))}
         </div>
       )}
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-          <div>
-            <p className="text-red-800 dark:text-red-200 font-semibold">Database Error</p>
-            <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-            {error.includes('migration') && (
-              <p className="text-red-600 dark:text-red-400 text-xs mt-2">
-                To fix: Run the migration file <code className="bg-red-100 dark:bg-red-900/30 px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
-              </p>
-            )}
-          </div>
-        </div>
+        <Card className="border-status-danger">
+          <CardBody>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-status-danger flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Database Error</p>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+                {error.includes('migration') && (
+                  <p className="text-status-danger-text dark:text-status-danger-text-dark text-xs mt-2">
+                    To fix: Run the migration file <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {leases.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
-          <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No leases yet</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Create your first lease to get started
-          </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
-          >
-            Create Lease
-          </button>
-        </div>
+        <EmptyState
+          message="No leases yet"
+          description="Create your first lease to get started"
+          icon={<FileText className="w-16 h-16 text-gray-400" />}
+          action={
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="w-4 h-4" />
+              Create Lease
+            </Button>
+          }
+        />
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Resident</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Lease Start</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Lease End</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rent</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Balance Due</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {leases.map((lease) => (
-                  <tr key={lease.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {lease.unit_code}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {lease.resident_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        lease.status === 'active' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                        lease.status === 'expired' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300' :
-                        lease.status === 'terminated' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
-                        'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
-                      }`}>
-                        {lease.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(lease.lease_start).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(lease.lease_end).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      ${lease.rent_amount.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {lease.balance_due > 0 ? (
-                        <span className="text-red-600 dark:text-red-400">
-                          ${lease.balance_due.toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-green-600 dark:text-green-400">$0</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => setSelectedLeaseId(lease.id)}
-                        className="text-havyn-primary dark:text-green-400 hover:underline"
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Card>
+          <CardBody className="p-0">
+            <DataTable
+              columns={[
+                {
+                  key: 'unit_code',
+                  label: 'Unit',
+                  render: (value) => <span className="font-medium text-gray-900 dark:text-white">{value}</span>
+                },
+                {
+                  key: 'resident_name',
+                  label: 'Resident',
+                  render: (value) => <span className="text-sm text-gray-600 dark:text-gray-400">{value}</span>
+                },
+                {
+                  key: 'status',
+                  label: 'Status',
+                  render: (value) => <Badge variant={getLeaseStatusBadgeVariant(value)}>{value}</Badge>
+                },
+                {
+                  key: 'lease_start',
+                  label: 'Lease Start',
+                  render: (value) => <span className="text-sm text-gray-600 dark:text-gray-400">{new Date(value).toLocaleDateString()}</span>
+                },
+                {
+                  key: 'lease_end',
+                  label: 'Lease End',
+                  render: (value) => <span className="text-sm text-gray-600 dark:text-gray-400">{new Date(value).toLocaleDateString()}</span>
+                },
+                {
+                  key: 'rent_amount',
+                  label: 'Rent',
+                  render: (value) => <span className="text-sm text-gray-600 dark:text-gray-400 tabular-nums">${value.toLocaleString()}</span>
+                },
+                {
+                  key: 'balance_due',
+                  label: 'Balance Due',
+                  className: 'text-right',
+                  render: (value) => (
+                    <span className={`text-sm font-medium tabular-nums ${
+                      value > 0 
+                        ? 'text-status-danger dark:text-status-danger-text-dark' 
+                        : 'text-gray-900 dark:text-white'
+                    }`}>
+                      ${value.toLocaleString()}
+                    </span>
+                  )
+                },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  render: (_, row) => (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedLeaseId(row.id)}
+                    >
+                      View Details
+                    </Button>
+                  )
+                }
+              ]}
+              data={leases}
+              emptyMessage="No leases yet"
+              emptyIcon={<FileText className="w-16 h-16 text-gray-400" />}
+              stickyHeader
+            />
+          </CardBody>
+        </Card>
       )}
 
       {showCreateModal && selectedProperty && (

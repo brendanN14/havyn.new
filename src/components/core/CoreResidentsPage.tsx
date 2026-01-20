@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Loader2, AlertCircle, FileText, DollarSign } from 'lucide-react';
+import { Users, AlertCircle, DollarSign } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { LeaseDetailModal } from './LeaseDetailModal';
+import { PageHeader, Card, CardBody, DataTable, Badge, Button, Spinner, EmptyState, getDelinquencyBadgeVariant, getLeaseStatusBadgeVariant } from '../ui';
 
 interface Resident {
   id: string;
@@ -173,146 +174,146 @@ export function CoreResidentsPage() {
   if (loading && !selectedProperty) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Residents</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">View and manage resident information</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Residents"
+        subtitle="View and manage resident information"
+      />
 
       {properties.length > 1 && (
         <div className="flex gap-2">
           {properties.map((prop) => (
-            <button
+            <Button
               key={prop.id}
+              variant={(propertyId || properties[0]?.id) === prop.id ? 'primary' : 'secondary'}
               onClick={() => {
                 fetchResidents(prop.id);
                 navigate(`/core/residents?property_id=${prop.id}`);
               }}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                (propertyId || properties[0]?.id) === prop.id
-                  ? 'bg-havyn-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
             >
               {prop.name}
-            </button>
+            </Button>
           ))}
         </div>
       )}
 
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-          <div>
-            <p className="text-red-800 dark:text-red-200 font-semibold">Database Error</p>
-            <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-            {error.includes('migration') && (
-              <p className="text-red-600 dark:text-red-400 text-xs mt-2">
-                To fix: Run the migration file <code className="bg-red-100 dark:bg-red-900/30 px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
-              </p>
-            )}
-          </div>
-        </div>
+        <Card className="border-status-danger">
+          <CardBody>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-status-danger flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Database Error</p>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+                {error.includes('migration') && (
+                  <p className="text-status-danger-text dark:text-status-danger-text-dark text-xs mt-2">
+                    To fix: Run the migration file <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">supabase/migrations/20250102000000_create_core_pms_schema.sql</code> in your Supabase dashboard.
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
-      {residents.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
-          <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No residents yet</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Residents will appear here once you create leases
-          </p>
-          <button
-            onClick={() => navigate('/core/leases')}
-            className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
-          >
-            Create Lease
-          </button>
-        </div>
-      ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Lease Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Balance Due</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {residents.map((resident) => (
-                  <tr key={resident.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {resident.full_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {resident.unit_code || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        resident.lease_status === 'active' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                        'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                      }`}>
-                        {resident.lease_status || '-'}
+      <Card>
+        <CardBody className="p-0">
+          <DataTable
+            columns={[
+              {
+                key: 'full_name',
+                label: 'Name',
+                render: (value) => <span className="font-medium text-gray-900 dark:text-white">{value}</span>
+              },
+              {
+                key: 'unit_code',
+                label: 'Unit',
+                render: (value) => <span className="text-sm text-gray-600 dark:text-gray-400">{value || '-'}</span>
+              },
+              {
+                key: 'lease_status',
+                label: 'Lease Status',
+                render: (value) => <Badge variant={getLeaseStatusBadgeVariant(value || 'expired')}>{value || '-'}</Badge>
+              },
+              {
+                key: 'balance',
+                label: 'Balance Due',
+                className: 'text-right',
+                render: (value) => {
+                  if (value < 0) {
+                    return (
+                      <span className="text-sm font-medium text-status-danger dark:text-status-danger-text-dark tabular-nums">
+                        ${Math.abs(value).toLocaleString()}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {resident.balance < 0 ? (
-                        <span className="text-red-600 dark:text-red-400">
-                          ${Math.abs(resident.balance).toLocaleString()}
-                        </span>
-                      ) : resident.balance > 0 ? (
-                        <span className="text-green-600 dark:text-green-400">
-                          ${resident.balance.toLocaleString()} (credit)
-                        </span>
-                      ) : (
-                        <span className="text-gray-600 dark:text-gray-400">$0</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {resident.category && (
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          resident.category === 'current' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                          resident.category === 'at_risk' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                          resident.category === 'delinquent' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300' :
-                          'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                        }`}>
-                          {resident.category.replace('_', ' ')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      <div>{resident.email || '-'}</div>
-                      <div className="text-xs">{resident.phone || '-'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => setSelectedLeaseId(resident.leaseId)}
-                        className="inline-flex items-center gap-1 text-havyn-primary dark:text-emerald-400 hover:underline"
-                      >
-                        <DollarSign className="w-4 h-4" />
-                        View Ledger
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                    );
+                  } else if (value > 0) {
+                    return (
+                      <span className="text-sm font-medium text-status-success dark:text-status-success-text-dark tabular-nums">
+                        ${value.toLocaleString()} (credit)
+                      </span>
+                    );
+                  }
+                  return <span className="text-sm text-gray-600 dark:text-gray-400">$0</span>;
+                }
+              },
+              {
+                key: 'category',
+                label: 'Category',
+                render: (value) => value ? <Badge variant={getDelinquencyBadgeVariant(value)}>{String(value).replace('_', ' ')}</Badge> : '-'
+              },
+              {
+                key: 'contact',
+                label: 'Contact',
+                render: (_, row) => (
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <div>{row.email || '-'}</div>
+                    <div className="text-xs">{row.phone || '-'}</div>
+                  </div>
+                )
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (_, row) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedLeaseId(row.leaseId)}
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    View Ledger
+                  </Button>
+                )
+              }
+            ]}
+            data={residents.map(r => ({
+              ...r,
+              contact: `${r.email || ''} ${r.phone || ''}`.trim()
+            }))}
+            emptyMessage="No residents yet"
+            emptyIcon={<Users className="w-16 h-16 text-gray-400" />}
+            stickyHeader
+          />
+        </CardBody>
+      </Card>
+
+      {residents.length === 0 && !loading && (
+        <EmptyState
+          message="No residents yet"
+          description="Residents will appear here once you create leases"
+          icon={<Users className="w-16 h-16 text-gray-400" />}
+          action={
+            <Button onClick={() => navigate('/core/leases')}>
+              Create Lease
+            </Button>
+          }
+        />
       )}
 
       {/* Lease Detail Modal */}

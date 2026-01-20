@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Home, User, DollarSign, Calendar, MessageSquare, FileText, Wrench, Loader2, AlertCircle } from 'lucide-react';
+import { User, MessageSquare, FileText, Wrench, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDelinquencyStatus, getAmountOwed } from '../../utils/financialSummary';
 import { LeaseDetailModal } from './LeaseDetailModal';
+import { ActivityTimeline, Card, CardBody, PageHeader, Breadcrumb, Button, Badge, Spinner, EmptyState, getUnitStatusBadgeVariant } from '../ui';
+import { fetchActivities } from '../../utils/activityLogging';
 
 export function UnitDetailPage() {
   const { unitId } = useParams<{ unitId: string }>();
@@ -19,12 +21,29 @@ export function UnitDetailPage() {
   const [ledgerAccount, setLedgerAccount] = useState<any>(null);
   const [financialStatus, setFinancialStatus] = useState<any>(null);
   const [selectedLeaseId, setSelectedLeaseId] = useState<string | null>(null);
+  const [activities, setActivities] = useState<any[]>([]);
 
   useEffect(() => {
     if (unitId && user?.id) {
       fetchUnitDetails();
     }
   }, [unitId, user?.id]);
+
+  useEffect(() => {
+    if (lease?.id) {
+      fetchActivitiesForUnit();
+    }
+  }, [lease?.id]);
+
+  const fetchActivitiesForUnit = async () => {
+    if (!lease?.id) return;
+    try {
+      const events = await fetchActivities({ leaseId: lease.id, unitId });
+      setActivities(events);
+    } catch (err) {
+      console.error('[UnitDetailPage] Error fetching activities:', err);
+    }
+  };
 
   const fetchUnitDetails = async () => {
     if (!unitId) return;
@@ -129,158 +148,132 @@ export function UnitDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
 
   if (error || !unit) {
     return (
-      <div className="p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-          <div>
-            <p className="text-red-800 dark:text-red-200 font-semibold">Error</p>
-            <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error || 'Unit not found'}</p>
-          </div>
-        </div>
-        <button
+      <div className="space-y-6 p-6">
+        <Card className="border-status-danger">
+          <CardBody>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-status-danger flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Error</p>
+                <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error || 'Unit not found'}</p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+        <Button
+          variant="secondary"
           onClick={() => navigate('/core/units')}
-          className="mt-4 flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
         >
-          <ArrowLeft className="w-4 h-4" />
           Back to Units
-        </button>
+        </Button>
       </div>
     );
   }
 
-  const statusColors = {
-    occupied: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
-    vacant: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
-    'make-ready': 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-    reserved: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
-  };
+  const breadcrumbItems = [];
+  if (property?.id) {
+    breadcrumbItems.push(
+      { label: 'Properties', onClick: () => navigate('/core/properties') },
+      { label: property.name, onClick: () => navigate(`/core/properties/${property.id}/units`) },
+      { label: 'Units', onClick: () => navigate(`/core/properties/${property.id}/units`) }
+    );
+  } else {
+    breadcrumbItems.push(
+      { label: 'Units', onClick: () => navigate('/core/units') }
+    );
+  }
+  breadcrumbItems.push({ label: `Unit ${unit.unit_code}` });
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => {
-            if (property?.id) {
-              navigate(`/core/properties/${property.id}/units`);
-            } else {
-              navigate('/core/units');
-            }
-          }}
-          className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-1">
-            {property?.id && (
-              <>
-                <button
-                  onClick={() => navigate(`/core/properties/${property.id}/units`)}
-                  className="hover:text-gray-700 dark:hover:text-gray-300"
-                >
-                  {property.name}
-                </button>
-                <span>/</span>
-                <button
-                  onClick={() => navigate(`/core/properties/${property.id}/units`)}
-                  className="hover:text-gray-700 dark:hover:text-gray-300"
-                >
-                  Units
-                </button>
-                <span>/</span>
-              </>
-            )}
-            <span className="text-gray-900 dark:text-white">Unit {unit.unit_code}</span>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Unit {unit.unit_code}</h1>
-          {property?.id && (
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              <button
-                onClick={() => navigate(`/core/properties/${property.id}/units`)}
-                className="hover:text-havyn-primary dark:hover:text-emerald-400 hover:underline"
-              >
-                {property.name}
-              </button>
-            </p>
-          )}
-        </div>
-        <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColors[unit.status as keyof typeof statusColors] || statusColors.vacant}`}>
-          {unit.status}
-        </span>
-      </div>
+    <div className="space-y-6 p-6">
+      <Breadcrumb items={breadcrumbItems} />
+      
+      <PageHeader
+        title={`Unit ${unit.unit_code}`}
+        subtitle={property?.name}
+        actions={
+          <Badge variant={getUnitStatusBadgeVariant(unit.status)}>
+            {unit.status}
+          </Badge>
+        }
+      />
 
       {/* Unit Info Card */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Unit Information</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {unit.beds && (
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Beds</p>
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">{unit.beds}</p>
-            </div>
-          )}
-          {unit.baths && (
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Baths</p>
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">{unit.baths}</p>
-            </div>
-          )}
-          {unit.sqft && (
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Square Feet</p>
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">{unit.sqft.toLocaleString()}</p>
-            </div>
-          )}
-          {unit.asking_rent && (
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Asking Rent</p>
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">${unit.asking_rent.toLocaleString()}/mo</p>
-            </div>
-          )}
-        </div>
-        {unit.available_date && unit.status !== 'occupied' && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Available Date</p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              {new Date(unit.available_date).toLocaleDateString()}
-            </p>
+      <Card>
+        <CardBody>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Unit Information</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {unit.beds && (
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Beds</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">{unit.beds}</p>
+              </div>
+            )}
+            {unit.baths && (
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Baths</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">{unit.baths}</p>
+              </div>
+            )}
+            {unit.sqft && (
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Square Feet</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">{unit.sqft.toLocaleString()}</p>
+              </div>
+            )}
+            {unit.asking_rent && (
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Asking Rent</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">${unit.asking_rent.toLocaleString()}/mo</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+          {unit.available_date && unit.status !== 'occupied' && (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Available Date</p>
+              <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                {new Date(unit.available_date).toLocaleDateString()}
+              </p>
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       {/* Current Lease Card */}
       {lease && resident ? (
         <>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Current Lease</h2>
-              <button
-                onClick={() => setSelectedLeaseId(lease.id)}
-                className="text-sm text-havyn-primary dark:text-emerald-400 hover:underline"
-              >
-                View Lease Details
-              </button>
-            </div>
+          <Card>
+            <CardBody>
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Current Lease</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedLeaseId(lease.id)}
+                >
+                  View Lease Details
+                </Button>
+              </div>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Resident</p>
                 <div className="flex items-center gap-2 mt-1">
                   <User className="w-4 h-4 text-gray-400" />
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">{resident.full_name}</p>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => navigate(`/core/residents?lease=${lease.id}`)}
-                    className="text-sm text-havyn-primary dark:text-emerald-400 hover:underline"
                   >
                     View
-                  </button>
+                  </Button>
                 </div>
                 {resident.email && (
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{resident.email}</p>
@@ -312,93 +305,121 @@ export function UnitDetailPage() {
                 </div>
               )}
             </div>
-          </div>
+            </CardBody>
+          </Card>
 
           {/* Financial Summary Card */}
           {financialStatus && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Financial Summary</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Amount Owed</p>
-                  <p className={`text-lg font-semibold ${financialStatus.amountOwed > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                    ${financialStatus.amountOwed.toLocaleString()}
-                  </p>
+            <Card>
+              <CardBody>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Financial Summary</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Amount Owed</p>
+                    <p className={`text-lg font-semibold tabular-nums ${
+                      financialStatus.amountOwed > 0 
+                        ? 'text-status-danger dark:text-status-danger-text-dark' 
+                        : 'text-gray-900 dark:text-white'
+                    }`}>
+                      ${financialStatus.amountOwed.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Days Past Due</p>
+                    <p className={`text-lg font-semibold ${
+                      financialStatus.daysPastDue > 0 
+                        ? 'text-status-warning dark:text-status-warning-text-dark' 
+                        : 'text-gray-900 dark:text-white'
+                    }`}>
+                      {financialStatus.daysPastDue}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Last Payment</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {financialStatus.lastPaymentDate 
+                        ? new Date(financialStatus.lastPaymentDate).toLocaleDateString()
+                        : 'Never'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                    <Badge variant={financialStatus.isDelinquent ? 'delinquency-delinquent' : 'delinquency-current'}>
+                      {financialStatus.isDelinquent ? 'Delinquent' : 'Current'}
+                    </Badge>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Days Past Due</p>
-                  <p className={`text-lg font-semibold ${financialStatus.daysPastDue > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                    {financialStatus.daysPastDue}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Last Payment</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {financialStatus.lastPaymentDate 
-                      ? new Date(financialStatus.lastPaymentDate).toLocaleDateString()
-                      : 'Never'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
-                  <p className={`text-lg font-semibold ${financialStatus.isDelinquent ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                    {financialStatus.isDelinquent ? 'Delinquent' : 'Current'}
-                  </p>
-                </div>
-              </div>
-            </div>
+              </CardBody>
+            </Card>
           )}
         </>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Current Lease</h2>
-          <p className="text-gray-600 dark:text-gray-400">Vacant / No active lease</p>
-        </div>
+        <Card>
+          <CardBody>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Current Lease</h2>
+            <p className="text-gray-600 dark:text-gray-400">Vacant / No active lease</p>
+          </CardBody>
+        </Card>
       )}
 
       {/* Quick Actions */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-        <div className="flex flex-wrap gap-3">
-          {lease && (
-            <>
-              <button
-                onClick={() => setSelectedLeaseId(lease.id)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <FileText className="w-4 h-4" />
-                View Lease
-              </button>
-              {resident && (
-                <button
-                  onClick={() => navigate(`/core/residents?lease=${lease.id}`)}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                >
-                  <User className="w-4 h-4" />
-                  View Resident
-                </button>
-              )}
-              {financialStatus?.isDelinquent && (
-                <button
+      <Card>
+        <CardBody>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+          <div className="flex flex-wrap gap-3">
+            {lease && (
+              <>
+                <Button
+                  variant="secondary"
                   onClick={() => setSelectedLeaseId(lease.id)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
-                  <MessageSquare className="w-4 h-4" />
-                  Draft Outreach
-                </button>
-              )}
-            </>
-          )}
-          <button
-            disabled
-            className="flex items-center gap-2 px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed opacity-50"
-            title="Coming soon"
-          >
-            <Wrench className="w-4 h-4" />
-            Create Work Order
-          </button>
-        </div>
-      </div>
+                  <FileText className="w-4 h-4" />
+                  View Lease
+                </Button>
+                {resident && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => navigate(`/core/residents?lease=${lease.id}`)}
+                  >
+                    <User className="w-4 h-4" />
+                    View Resident
+                  </Button>
+                )}
+                {financialStatus?.isDelinquent && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setSelectedLeaseId(lease.id)}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Draft Outreach
+                  </Button>
+                )}
+              </>
+            )}
+            <Button
+              variant="secondary"
+              disabled
+              title="Coming soon"
+            >
+              <Wrench className="w-4 h-4" />
+              Create Work Order
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Activity Timeline */}
+      {lease && (
+        <Card>
+          <CardBody>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Activity Timeline</h2>
+            <ActivityTimeline
+              events={activities}
+              emptyMessage="No activity recorded for this unit"
+            />
+          </CardBody>
+        </Card>
+      )}
 
       {/* Lease Detail Modal */}
       {selectedLeaseId && (

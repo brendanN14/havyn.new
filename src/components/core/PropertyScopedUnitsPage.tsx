@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Home, Trash2, Loader2, AlertCircle, Upload } from 'lucide-react';
+import { Home, Trash2, Upload } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BulkAddUnitsModal } from './BulkAddUnitsModal';
 import { VacancyBoard } from './VacancyBoard';
+import { PageHeader, Card, CardBody, DataTable, Badge, Button, Spinner, EmptyState, getUnitStatusBadgeVariant } from '../ui';
 
 interface Unit {
   id: string;
@@ -94,61 +95,61 @@ export function PropertyScopedUnitsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-havyn-primary" />
+        <Spinner size="lg" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-2">
-        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-        <div>
-          <p className="text-red-800 dark:text-red-200 font-semibold">Error</p>
-          <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-        </div>
-      </div>
+      <Card className="border-status-danger">
+        <CardBody>
+          <div className="flex items-start gap-3">
+            <div>
+              <p className="text-status-danger-text dark:text-status-danger-text-dark font-semibold">Error</p>
+              <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Units</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage units for this property</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setViewMode(viewMode === 'list' ? 'vacancy' : 'list')}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            {viewMode === 'list' ? 'Vacancy Board' : 'List View'}
-          </button>
-          <button
-            onClick={() => setShowBulkAdd(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
-          >
-            <Upload className="w-5 h-5" />
-            Bulk Add Units
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Units"
+        subtitle="Manage units for this property"
+        actions={
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setViewMode(viewMode === 'list' ? 'vacancy' : 'list')}
+            >
+              {viewMode === 'list' ? 'Vacancy Board' : 'List View'}
+            </Button>
+            <Button
+              onClick={() => setShowBulkAdd(true)}
+            >
+              <Upload className="w-4 h-4" />
+              Bulk Add Units
+            </Button>
+          </div>
+        }
+      />
 
       {units.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
-          <Home className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No units yet</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Add units to this property to get started
-          </p>
-          <button
-            onClick={() => setShowBulkAdd(true)}
-            className="px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors"
-          >
-            Add Units
-          </button>
-        </div>
+        <EmptyState
+          message="No units yet"
+          description="Add units to this property to get started"
+          icon={<Home className="w-16 h-16 text-gray-400" />}
+          action={
+            <Button onClick={() => setShowBulkAdd(true)}>
+              <Upload className="w-4 h-4" />
+              Add Units
+            </Button>
+          }
+        />
       ) : (
         <>
           {viewMode === 'vacancy' ? (
@@ -158,55 +159,93 @@ export function PropertyScopedUnitsPage() {
               onUpdate={fetchUnits}
             />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {units.map((unit) => (
-                <div
-                  key={unit.id}
-                  onClick={() => navigate(`/core/units/${unit.id}`)}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:shadow-lg transition-shadow cursor-pointer"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      <Home className="w-5 h-5 text-havyn-primary dark:text-green-400" />
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{unit.unit_code}</h3>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(unit.id);
-                      }}
-                      className="p-1 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                    {(unit.beds || unit.baths) && (
-                      <p>
-                        {unit.beds} bed{unit.beds !== 1 ? 's' : ''} / {unit.baths} bath{unit.baths !== 1 ? 's' : ''}
-                      </p>
-                    )}
-                    {unit.sqft && <p>{unit.sqft.toLocaleString()} sqft</p>}
-                    {unit.asking_rent && (
-                      <p className="font-medium">${unit.asking_rent.toLocaleString()}/mo</p>
-                    )}
-                    {unit.status === 'occupied' && unit.leases && unit.leases.length > 0 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Occupied by: {unit.leases.find((l: any) => l.status === 'active')?.primary_resident?.full_name || 'Unknown'}
-                      </p>
-                    )}
-                    <p className={`inline-block px-2 py-1 rounded text-xs ${
-                      unit.status === 'occupied' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                      unit.status === 'vacant' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
-                      unit.status === 'make-ready' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                      'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
-                    }`}>
-                      {unit.status}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Card>
+              <CardBody className="p-0">
+                <DataTable
+                  columns={[
+                    {
+                      key: 'unit',
+                      label: 'Unit',
+                      render: (_, row) => (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/core/units/${row.unitId}`)}
+                          className="h-auto p-0 font-semibold"
+                        >
+                          {row.unit}
+                        </Button>
+                      )
+                    },
+                    {
+                      key: 'details',
+                      label: 'Details',
+                      render: (_, row) => (
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          {row.beds && row.baths && (
+                            <div>{row.beds} bed{row.beds !== 1 ? 's' : ''} / {row.baths} bath{row.baths !== 1 ? 's' : ''}</div>
+                          )}
+                          {row.sqft && <div>{row.sqft.toLocaleString()} sqft</div>}
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'rent',
+                      label: 'Asking Rent',
+                      className: 'text-right',
+                      render: (value) => value ? <span className="text-sm font-medium text-gray-900 dark:text-white">${value}</span> : '-'
+                    },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      render: (value) => <Badge variant={getUnitStatusBadgeVariant(value)}>{value}</Badge>
+                    },
+                    {
+                      key: 'occupant',
+                      label: 'Occupant',
+                      render: (value) => value ? <span className="text-sm text-gray-600 dark:text-gray-400">{value}</span> : '-'
+                    },
+                    {
+                      key: 'availableDate',
+                      label: 'Available Date',
+                      render: (value) => value ? <span className="text-sm text-gray-600 dark:text-gray-400">{new Date(value).toLocaleDateString()}</span> : '-'
+                    },
+                    {
+                      key: 'actions',
+                      label: 'Actions',
+                      render: (_, row) => (
+                        <Button
+                          variant="icon"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(row.unitId);
+                          }}
+                          aria-label="Delete unit"
+                          className="text-status-danger hover:text-status-danger"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )
+                    }
+                  ]}
+                  data={units.map(unit => ({
+                    unit: unit.unit_code,
+                    unitId: unit.id,
+                    beds: unit.beds,
+                    baths: unit.baths,
+                    sqft: unit.sqft,
+                    rent: unit.asking_rent ? unit.asking_rent.toLocaleString() + '/mo' : null,
+                    status: unit.status,
+                    occupant: unit.status === 'occupied' && unit.leases && unit.leases.length > 0
+                      ? unit.leases.find((l: any) => l.status === 'active')?.primary_resident?.full_name || null
+                      : null,
+                    availableDate: unit.available_date
+                  }))}
+                  emptyMessage="No units found"
+                />
+              </CardBody>
+            </Card>
           )}
         </>
       )}

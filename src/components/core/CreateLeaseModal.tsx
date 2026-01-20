@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { Modal, Button, Spinner, Card, CardBody } from '../ui';
 
 interface CreateLeaseModalProps {
   propertyId: string;
@@ -106,10 +106,10 @@ export function CreateLeaseModal({ propertyId, onClose, onSuccess }: CreateLease
           days_past_due: 0
         });
 
-      // Update unit status to occupied
+      // Update unit status to occupied and set showable=false
       await supabase
         .from('core_units')
-        .update({ status: 'occupied' })
+        .update({ status: 'occupied', showable: false })
         .eq('id', formData.unit_id);
 
       onSuccess();
@@ -122,21 +122,49 @@ export function CreateLeaseModal({ propertyId, onClose, onSuccess }: CreateLease
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Create Lease</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Create Lease"
+      size="lg"
+      footer={
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            onClick={onClose}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={(e) => {
+              e.preventDefault();
+              handleSubmit(e as any);
+            }}
+            disabled={loading}
+            className="flex-1"
+          >
+            {loading ? (
+              <>
+                <Spinner size="sm" />
+                Creating...
+              </>
+            ) : (
+              'Create Lease'
+            )}
+          </Button>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-800 dark:text-red-200">
-              {error}
-            </div>
-          )}
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <Card className="border-status-danger">
+            <CardBody>
+              <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm">{error}</p>
+            </CardBody>
+          </Card>
+        )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -275,32 +303,8 @@ export function CreateLeaseModal({ propertyId, onClose, onSuccess }: CreateLease
             </select>
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-havyn-primary text-white rounded-md hover:bg-havyn-dark disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Create Lease'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }
 

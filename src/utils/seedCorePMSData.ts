@@ -326,6 +326,185 @@ export async function seedCorePMSDataForCurrentUser() {
   }
 }
 
+/**
+ * Seed leads, tours, and applications for existing properties
+ * This creates a full leasing workflow demo
+ */
+export async function seedLeasingHubDataForCurrentUser() {
+  try {
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error('You must be logged in to seed data');
+    }
+
+    console.log('Seeding Leasing Hub data for user:', user.id);
+
+    // Get user's first property
+    const { data: properties, error: propError } = await supabase
+      .from('core_properties')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1);
+
+    if (propError) throw propError;
+    if (!properties || properties.length === 0) {
+      throw new Error('No property found. Please create a property first.');
+    }
+
+    const propertyId = properties[0].id;
+
+    // Get vacant/ready units
+    const { data: units, error: unitsError } = await supabase
+      .from('core_units')
+      .select('id, unit_code, asking_rent')
+      .eq('property_id', propertyId)
+      .in('status', ['vacant', 'make-ready'])
+      .limit(10);
+
+    if (unitsError) throw unitsError;
+    if (!units || units.length === 0) {
+      console.log('No vacant/ready units found. Creating demo leads without unit assignments.');
+    }
+
+    // Create 8-10 leads with varying stages
+    const leadNames = [
+      { first: 'Alex', last: 'Thompson', email: 'alex.thompson@email.com', phone: '555-1001', source: 'Zillow' },
+      { first: 'Maria', last: 'Garcia', email: 'maria.garcia@email.com', phone: '555-1002', source: 'Apartments.com' },
+      { first: 'Kevin', last: 'Lee', email: 'kevin.lee@email.com', phone: '555-1003', source: 'Referral' },
+      { first: 'Rachel', last: 'Brown', email: 'rachel.brown@email.com', phone: '555-1004', source: 'Facebook' },
+      { first: 'Tom', last: 'Wilson', email: 'tom.wilson@email.com', phone: '555-1005', source: 'Walk-in' },
+      { first: 'Sophie', last: 'Martinez', email: 'sophie.martinez@email.com', phone: '555-1006', source: 'Craigslist' },
+      { first: 'Chris', last: 'Anderson', email: 'chris.anderson@email.com', phone: '555-1007', source: 'Zillow' },
+      { first: 'Emma', last: 'Taylor', email: 'emma.taylor@email.com', phone: '555-1008', source: 'Website' },
+    ];
+
+    const now = new Date();
+    const leads = leadNames.map((name, idx) => {
+      const nextAction = new Date(now);
+      nextAction.setHours(nextAction.getHours() + (idx * 2)); // Stagger next actions
+
+      let stage: 'inquiry' | 'tour_scheduled' | 'application' | 'approved' = 'inquiry';
+      if (idx >= 6) stage = 'approved'; // Last 2 are approved
+      else if (idx >= 4) stage = 'application'; // Middle 2 are in application
+      else if (idx >= 2) stage = 'tour_scheduled'; // Some have tours scheduled
+
+      return {
+        property_id: propertyId,
+        unit_id: units && units[idx % units.length] ? units[idx % units.length].id : null,
+        owner_user_id: user.id,
+        stage,
+        next_action_at: nextAction.toISOString(),
+        last_touch_at: now.toISOString(),
+        first_name: name.first,
+        last_name: name.last,
+        email: name.email,
+        phone: name.phone,
+        source: name.source,
+        notes: idx === 0 ? 'Interested in unit with parking' : null,
+      };
+    });
+
+    const { data: createdLeads, error: leadsError } = await supabase
+      .from('core_leads')
+      .insert(leads)
+      .select();
+
+    if (leadsError) throw leadsError;
+    console.log('Created leads:', createdLeads?.length);
+
+    // Create tours for leads in tour_scheduled or application stage
+    const tourLeads = createdLeads?.filter(l => ['tour_scheduled', 'application'].includes(l.stage)) || [];
+    const tours = tourLeads.map((lead, idx) => {
+      const scheduledAt = new Date(now);
+      scheduledAt.setDate(scheduledAt.getDate() + (idx + 1)); // Schedule over next few days
+      scheduledAt.setHours(14 + idx); // Afternoon times
+
+      let status: 'scheduled' | 'completed' | 'no_show' = 'scheduled';
+      if (lead.stage === 'application') {
+        status = idx % 2 === 0 ? 'completed' : 'scheduled'; // Some completed
+      }
+
+      return {
+        lead_id: lead.id,
+        unit_id: lead.unit_id,
+        scheduled_at: scheduledAt.toISOString(),
+        completed_at: status === 'completed' ? scheduledAt.toISOString() : null,
+        status,
+        notes: status === 'completed' ? 'Tour completed, interested in unit' : null,
+        created_by: user.id,
+      };
+    });
+
+    if (tours.length > 0) {
+      const { data: createdTours, error: toursError } = await supabase
+        .from('core_tours')
+        .insert(tours)
+        .select();
+
+      if (toursError) throw toursError;
+      console.log('Created tours:', createdTours?.length);
+    }
+
+    // Create applications for leads in application or approved stage
+    const appLeads = createdLeads?.filter(l => ['application', 'approved'].includes(l.stage)) || [];
+    const applications = appLeads.map((lead, idx) => {
+      const submittedAt = new Date(now);
+      submittedAt.setDate(submittedAt.getDate() - (idx + 1)); // Submitted in past few days
+
+      let status: 'pending' | 'approved' | 'rejected' = 'pending';
+      if (lead.stage === 'approved') {
+        status = 'approved';
+      }
+
+      return {
+        lead_id: lead.id,
+        unit_id: lead.unit_id,
+        status,
+        submitted_at: submittedAt.toISOString(),
+        reviewed_at: status === 'approved' ? submittedAt.toISOString() : null,
+        income_amount: 4500 + (idx * 500), // Varying incomes
+        credit_score: 650 + (idx * 20), // Varying credit scores
+        notes: status === 'approved' ? 'Application approved, ready for lease conversion' : 'Application pending review',
+        created_by: user.id,
+      };
+    });
+
+    if (applications.length > 0) {
+      const { data: createdApps, error: appsError } = await supabase
+        .from('core_applications')
+        .insert(applications)
+        .select();
+
+      if (appsError) throw appsError;
+      console.log('Created applications:', createdApps?.length);
+    }
+
+    // Log activities
+    const { logActivity } = await import('./activityLogging');
+    for (const lead of createdLeads || []) {
+      await logActivity({
+        type: 'note',
+        title: 'Lead created',
+        description: 'Demo lead created',
+        leadId: lead.id,
+      });
+    }
+
+    console.log('✅ Leasing Hub seeding completed successfully!');
+    return { success: true, message: 'Leasing Hub data seeded successfully' };
+  } catch (error: any) {
+    console.error('❌ Error seeding Leasing Hub data:', error);
+    return { success: false, message: error.message || 'Failed to seed Leasing Hub data' };
+  }
+}
+
+// Make it available globally for console access
+if (typeof window !== 'undefined') {
+  (window as any).seedLeasingHubData = seedLeasingHubDataForCurrentUser;
+}
+
 // Make it available globally for console access
 if (typeof window !== 'undefined') {
   (window as any).seedCorePMSData = seedCorePMSDataForCurrentUser;

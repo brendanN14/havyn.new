@@ -1,5 +1,6 @@
 // Communication logging utilities for Core PMS
 import { supabase } from '../lib/supabase';
+import { logActivity } from './activityLogging';
 
 export interface CommunicationLog {
   id: string;
@@ -90,6 +91,19 @@ export async function updateLastContact(leaseId: string): Promise<{ success: boo
       return { success: false, error: updateError.message };
     }
 
+    // Log activity
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await logActivity({
+        type: 'note',
+        title: 'Marked as contacted',
+        description: 'Last contact date updated',
+        leaseId,
+      }, user?.id);
+    } catch (err) {
+      console.error('[communicationLogging] Error logging activity:', err);
+    }
+
     return { success: true };
   } catch (err: any) {
     console.error('[communicationLogging] Unexpected error updating last contact:', err);
@@ -126,6 +140,19 @@ export async function updatePromiseToPayDate(
     if (updateError) {
       console.error('[communicationLogging] Error updating promise-to-pay date:', updateError);
       return { success: false, error: updateError.message };
+    }
+
+    // Log activity
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await logActivity({
+        type: 'note',
+        title: promiseDate ? 'Promise-to-pay date set' : 'Promise-to-pay date cleared',
+        description: promiseDate ? `Promise-to-pay date: ${new Date(promiseDate).toLocaleDateString()}` : 'Promise-to-pay date removed',
+        leaseId,
+      }, user?.id);
+    } catch (err) {
+      console.error('[communicationLogging] Error logging activity:', err);
     }
 
     return { success: true };
@@ -242,6 +269,19 @@ export async function updateLedgerNotes(
     if (updateError) {
       console.error('[communicationLogging] Error updating notes:', updateError);
       return { success: false, error: updateError.message };
+    }
+
+    // Log activity
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await logActivity({
+        type: 'note',
+        title: 'Notes updated',
+        description: notes ? `Notes: ${notes.substring(0, 100)}${notes.length > 100 ? '...' : ''}` : 'Notes cleared',
+        leaseId,
+      }, user?.id);
+    } catch (err) {
+      console.error('[communicationLogging] Error logging activity:', err);
     }
 
     return { success: true };

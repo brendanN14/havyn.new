@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { Modal, Button, Spinner } from '../ui';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -143,6 +144,16 @@ export function TransactionModal({
       // Update ledger account balance and insights
       await updateLedgerAccountAndInsights(ledgerAccountId, leaseId);
 
+      // Log activity
+      const { logActivity } = await import('../../utils/activityLogging');
+      await logActivity({
+        type: 'other',
+        title: `${getTxnType() === 'charge' ? 'Charge' : getTxnType() === 'payment' ? 'Payment' : 'Credit'} recorded`,
+        description: `${formData.category || 'Transaction'} - $${Math.abs(amount).toLocaleString()}`,
+        leaseId,
+        metadata: { txn_type: getTxnType(), category: formData.category, amount: signedAmount }
+      }, user.id);
+
       // Reset form and close
       setFormData({
         txn_date: new Date().toISOString().split('T')[0],
@@ -170,35 +181,54 @@ export function TransactionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {getTitle()}
-          </h2>
-          <button
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={getTitle()}
+      size="md"
+      footer={
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
             onClick={onClose}
             disabled={loading}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
+            className="flex-1"
           >
-            <X className="w-5 h-5" />
-          </button>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1"
+          >
+            {loading ? (
+              <>
+                <Spinner size="sm" />
+                Processing...
+              </>
+            ) : (
+              'Submit'
+            )}
+          </Button>
         </div>
+      }
+    >
+      {error && (
+        <div className="mb-4 bg-status-danger-bg dark:bg-status-danger-bg-dark/30 border border-status-danger dark:border-status-danger-bg-dark rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-status-danger dark:text-status-danger-text-dark flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-status-danger-text dark:text-status-danger-text-dark font-medium">Error</p>
+            <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+          </div>
+        </div>
+      )}
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-red-800 dark:text-red-200 font-medium">Error</p>
-                <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-              </div>
-            </div>
-          )}
+      <form onSubmit={handleSubmit} className="space-y-4">
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Date <span className="text-red-500">*</span>
+              Date <span className="text-status-danger">*</span>
             </label>
             <input
               type="date"
@@ -211,7 +241,7 @@ export function TransactionModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Amount <span className="text-red-500">*</span>
+              Amount <span className="text-status-danger">*</span>
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -230,7 +260,7 @@ export function TransactionModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Category <span className="text-red-500">*</span>
+              Category <span className="text-status-danger">*</span>
             </label>
             <select
               required
@@ -261,33 +291,8 @@ export function TransactionModal({
             />
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-havyn-primary text-white rounded-lg hover:bg-havyn-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                'Submit'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }
 

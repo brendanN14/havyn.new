@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Home, Check, ArrowRight, ArrowLeft, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Building2, Home, Check, ArrowRight, ArrowLeft, Sparkles, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { seedCorePMSDataForCurrentUser } from '../../utils/seedCorePMSData';
+import { Card, CardBody, Button, Spinner } from '../ui';
 
 type Step = 'property' | 'units' | 'complete';
 
@@ -173,11 +174,11 @@ export function CoreSetupWizard() {
     const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50 dark:from-gray-900 dark:via-gray-900 dark:to-emerald-950 py-12 px-4">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4">
             <div className="max-w-2xl mx-auto">
                 {/* Header */}
                 <div className="text-center mb-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-havyn-primary to-emerald-600 rounded-2xl shadow-lg mb-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-havyn-primary rounded-2xl shadow-lg mb-4">
                         <Building2 className="w-8 h-8 text-white" />
                     </div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome to Core PMS</h1>
@@ -218,19 +219,25 @@ export function CoreSetupWizard() {
 
                 {/* Error Banner */}
                 {error && (
-                    <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                            <p className="text-red-800 dark:text-red-200 font-medium">Error</p>
-                            <p className="text-red-700 dark:text-red-300 text-sm mt-1">{error}</p>
-                        </div>
-                        <button
-                            onClick={() => setError(null)}
-                            className="ml-auto text-red-400 hover:text-red-600"
-                        >
-                            ×
-                        </button>
-                    </div>
+                    <Card className="border-status-danger mb-6">
+                        <CardBody>
+                            <div className="flex items-start gap-3">
+                                <AlertCircle className="w-5 h-5 text-status-danger flex-shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <p className="text-status-danger-text dark:text-status-danger-text-dark font-medium">Error</p>
+                                    <p className="text-status-danger-text dark:text-status-danger-text-dark text-sm mt-1">{error}</p>
+                                </div>
+                                <Button
+                                    variant="icon"
+                                    size="sm"
+                                    onClick={() => setError(null)}
+                                    aria-label="Dismiss error"
+                                >
+                                    ×
+                                </Button>
+                            </div>
+                        </CardBody>
+                    </Card>
                 )}
 
                 {/* Step Content */}
@@ -245,7 +252,7 @@ export function CoreSetupWizard() {
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Property Name <span className="text-red-500">*</span>
+                                        Property Name <span className="text-status-danger">*</span>
                                     </label>
                                     <input
                                         type="text"
@@ -325,7 +332,7 @@ export function CoreSetupWizard() {
                                     className="flex items-center gap-2 px-6 py-3 bg-havyn-primary text-white rounded-xl hover:bg-havyn-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {loading ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <Spinner size="sm" />
                                     ) : (
                                         <>
                                             Continue
@@ -385,7 +392,7 @@ export function CoreSetupWizard() {
                                         className="flex items-center gap-2 px-6 py-3 bg-havyn-primary text-white rounded-xl hover:bg-havyn-dark transition-colors disabled:opacity-50"
                                     >
                                         {loading ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <Spinner size="sm" />
                                         ) : (
                                             <>
                                                 Create Units
@@ -400,7 +407,7 @@ export function CoreSetupWizard() {
 
                     {currentStep === 'complete' && (
                         <div className="text-center py-8">
-                            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-havyn-primary to-emerald-600 rounded-full mb-6">
+                            <div className="inline-flex items-center justify-center w-20 h-20 bg-havyn-primary rounded-full mb-6">
                                 <Check className="w-10 h-10 text-white" />
                             </div>
                             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">You're All Set!</h2>
