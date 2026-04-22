@@ -55,15 +55,15 @@ export function DataTable({
   }
 
   return (
-    <div className={cn('overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg', className)}>
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className={cn('bg-gray-50 dark:bg-gray-900', stickyHeader && 'sticky top-0 z-10')}>
+    <div className={cn('overflow-x-auto border border-gray-200/50 dark:border-gray-700/50 rounded-lg shadow-soft bg-white dark:bg-gray-800/50 backdrop-blur-sm', className)}>
+      <table className="min-w-full divide-y divide-gray-200/50 dark:divide-gray-700/50">
+        <thead className={cn('bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-900 dark:to-gray-800/50', stickyHeader && 'sticky top-0 z-10')}>
           <tr>
             {columns.map((column) => (
               <th
                 key={column.key}
                 className={cn(
-                  'px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider',
+                  'px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider',
                   column.className
                 )}
               >
@@ -72,20 +72,21 @@ export function DataTable({
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody className="bg-white dark:bg-gray-800/30 divide-y divide-gray-200/30 dark:divide-gray-700/30">
           {data.map((row, rowIndex) => (
             <tr
               key={rowIndex}
               onClick={() => onRowClick?.(row)}
               className={cn(
-                onRowClick && 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                'transition-all duration-200',
+                onRowClick && 'cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-700/30 hover:shadow-soft'
               )}
             >
               {columns.map((column) => (
                 <td
                   key={column.key}
                   className={cn(
-                    'px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white',
+                    'px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100',
                     column.className
                   )}
                 >

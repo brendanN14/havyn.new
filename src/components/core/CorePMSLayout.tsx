@@ -4,7 +4,7 @@ import { Menu, Sun, Moon, LogOut, Building2, Home, ArrowLeft, FileText, Users, D
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../contexts/ProfileContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Button, Spinner } from '../ui';
+import { Button, Spinner, GradientBackground } from '../ui';
 import { cn } from '../../utils/cn';
 
 export function CorePMSLayout() {
@@ -35,57 +35,66 @@ export function CorePMSLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <div className="flex justify-between items-center h-16 px-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-4">
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Legacy Dashboard
-          </Link>
-          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
-          <img src="/havyn-icon.svg" alt="Havyn" className="h-12 w-auto" />
-          <span className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
-            Core PMS (Beta)
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="icon"
-            size="sm"
-            onClick={toggleDarkMode}
-            title={isDarkMode ? 'Light mode' : 'Dark mode'}
-          >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </Button>
-          <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{user?.email}</span>
-          <Button
-            variant="icon"
-            size="sm"
-            onClick={() => setIsSidebarOpen(true)}
-            title="Open menu"
-          >
-            <Menu className="w-6 h-6" />
-          </Button>
+    <GradientBackground variant="subtle" className="min-h-screen transition-colors">
+      {/* Header */}
+      <div className="sticky top-0 z-30 backdrop-blur-md glass dark:glass-dark border-b border-white/20 dark:border-gray-700/50">
+        <div className="flex justify-between items-center h-16 px-6">
+          <div className="flex items-center gap-4">
+            <Link
+              to="/dashboard"
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/20 dark:hover:bg-gray-700/30 rounded-lg transition-all duration-200"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Legacy Dashboard
+            </Link>
+            <div className="h-6 w-px bg-gray-300/50 dark:bg-gray-600/50" />
+            <img src="/havyn-icon.svg" alt="Havyn" className="h-12 w-auto" />
+            <span className="px-2 py-1 text-xs font-medium bg-gradient-havyn-subtle dark:bg-gradient-havyn-dark text-havyn-primary dark:text-havyn-lightest rounded border border-havyn-primary/20">
+              Core PMS (Beta)
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={toggleDarkMode}
+              title={isDarkMode ? 'Light mode' : 'Dark mode'}
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </Button>
+            <span className="text-sm text-gray-700 dark:text-gray-200 font-medium">{user?.email}</span>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => setIsSidebarOpen(true)}
+              title="Open menu"
+            >
+              <Menu className="w-6 h-6" />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Sidebar */}
       <>
         <div
-          className={`fixed inset-0 bg-black bg-opacity-50 transition-opacity z-40 ${
+          className={cn(
+            'fixed inset-0 z-40 transition-opacity duration-300',
+            'backdrop-blur-sm bg-black/40 dark:bg-black/60',
             isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+          )}
           onClick={() => setIsSidebarOpen(false)}
         />
         <div
-          className={`fixed right-0 top-0 h-full w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transform transition-transform z-50 ${
+          className={cn(
+            'fixed right-0 top-0 h-full w-80 z-50',
+            'glass-strong dark:glass-dark-strong shadow-glass-lg',
+            'border-l border-white/20 dark:border-gray-700/50',
+            'transform transition-transform duration-300 ease-out',
             isSidebarOpen ? 'translate-x-0' : 'translate-x-full'
-          }`}
+          )}
         >
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="p-6 border-b border-white/20 dark:border-gray-700/50">
             <div className="flex items-center justify-between">
               <img src="/havyn-icon.svg" alt="Havyn" className="h-12 w-auto" />
               <Button
@@ -124,8 +133,10 @@ export function CorePMSLayout() {
                     setIsSidebarOpen(false);
                   }}
                   className={cn(
-                    'w-full justify-start gap-3',
-                    isActive && 'bg-gray-100 dark:bg-gray-700 text-havyn-primary dark:text-havyn-lightest'
+                    'w-full justify-start gap-3 transition-all duration-200',
+                    isActive 
+                      ? 'bg-gradient-havyn-subtle dark:bg-gradient-havyn-dark text-havyn-primary dark:text-havyn-lightest border-l-2 border-havyn-primary' 
+                      : 'hover:bg-white/10 dark:hover:bg-gray-700/30'
                   )}
                 >
                   <Icon className="w-5 h-5" />
@@ -134,7 +145,7 @@ export function CorePMSLayout() {
               );
             })}
 
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="pt-4 border-t border-white/20 dark:border-gray-700/50">
               <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Legacy
               </div>
@@ -144,18 +155,18 @@ export function CorePMSLayout() {
                   navigate('/dashboard');
                   setIsSidebarOpen(false);
                 }}
-                className="w-full justify-start gap-3"
+                className="w-full justify-start gap-3 hover:bg-white/10 dark:hover:bg-gray-700/30"
               >
                 <Building2 className="w-5 h-5" />
                 <span>CSV/Insights Dashboard</span>
               </Button>
             </div>
 
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="pt-4 border-t border-white/20 dark:border-gray-700/50">
               <Button
                 variant="ghost"
                 onClick={handleSignOut}
-                className="w-full justify-start gap-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className="w-full justify-start gap-3 text-red-600 dark:text-red-400 hover:bg-red-50/20 dark:hover:bg-red-900/20"
               >
                 <LogOut className="w-5 h-5" />
                 <span>Sign out</span>
@@ -168,7 +179,7 @@ export function CorePMSLayout() {
       <main className="p-6">
         <Outlet />
       </main>
-    </div>
+    </GradientBackground>
   );
 }
 

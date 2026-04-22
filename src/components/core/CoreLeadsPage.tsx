@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { Plus, Calendar, Clock, AlertCircle, Mail, Phone, Eye, Search, X, Filter } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { PageHeader, Card, CardBody, DataTable, Badge, Button, Spinner, Modal, EmptyState } from '../ui';
+import { PageHeader, Card, CardBody, DataTable, Badge, Button, Spinner, Modal, EmptyState, AnimatedContainer, GlassCard } from '../ui';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { CreateLeadModal } from './CreateLeadModal';
 import { formatDistanceToNow, format, isPast, isFuture, differenceInHours } from 'date-fns';
@@ -411,10 +411,11 @@ export function CoreLeadsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AnimatedContainer animation="fade-in-up" className="space-y-6">
       <PageHeader
         title="Leads"
         subtitle="Manage your leasing pipeline"
+        variant="gradient"
         actions={
           <>
             {properties.length > 1 && !showFilters && (
@@ -462,8 +463,9 @@ export function CoreLeadsPage() {
 
       {/* Filters */}
       {showFilters && (
-        <Card>
-          <CardBody>
+        <AnimatedContainer animation="slide-down">
+          <Card variant="glass" hover>
+            <CardBody>
             <div className="flex flex-wrap gap-4 items-end">
               <div className="flex-1 min-w-[200px]">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -536,9 +538,11 @@ export function CoreLeadsPage() {
             </div>
           </CardBody>
         </Card>
+        </AnimatedContainer>
       )}
 
-      <Card>
+      <AnimatedContainer animation="fade-in-up" delay={100}>
+        <Card variant="glass" hover>
         <CardBody className="p-0">
           <DataTable
             columns={[
@@ -736,6 +740,7 @@ export function CoreLeadsPage() {
           />
         </CardBody>
       </Card>
+      </AnimatedContainer>
 
       {/* Create Lead Modal */}
       <CreateLeadModal
@@ -874,6 +879,6 @@ export function CoreLeadsPage() {
           }
         }}
       />
-    </div>
+    </AnimatedContainer>
   );
 }

@@ -39,3 +39,12 @@ export type { DrawerProps } from './Drawer';
 
 export { Skeleton } from './Skeleton';
 export type { SkeletonProps } from './Skeleton';
+
+export { GradientBackground } from './GradientBackground';
+export type { GradientBackgroundProps } from './GradientBackground';
+
+export { GlassCard } from './GlassCard';
+export type { GlassCardProps } from './GlassCard';
+
+export { AnimatedContainer } from './AnimatedContainer';
+export type { AnimatedContainerProps } from './AnimatedContainer';

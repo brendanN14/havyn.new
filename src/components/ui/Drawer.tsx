@@ -57,7 +57,11 @@ export function Drawer({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+        className={cn(
+          'fixed inset-0 z-40 transition-opacity',
+          'backdrop-blur-sm bg-black/40 dark:bg-black/60',
+          'animate-fade-in'
+        )}
         onClick={onClose}
         aria-hidden="true"
       />
@@ -65,8 +69,12 @@ export function Drawer({
       {/* Drawer */}
       <div
         className={cn(
-          'fixed top-0 h-full bg-white dark:bg-gray-800 shadow-xl z-50 overflow-y-auto transition-transform',
-          side === 'left' ? 'left-0' : 'right-0',
+          'fixed top-0 h-full z-50 overflow-y-auto',
+          'glass-strong dark:glass-dark-strong shadow-glass-lg',
+          'transition-transform duration-300 ease-out',
+          side === 'left' 
+            ? 'left-0 translate-x-0' 
+            : 'right-0 translate-x-0',
           sizeClasses[size],
           className
         )}
@@ -76,7 +84,7 @@ export function Drawer({
       >
         {/* Header */}
         {title && (
-          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6 z-10 flex items-center justify-between">
+          <div className="sticky top-0 glass dark:glass-dark border-b border-white/20 dark:border-gray-700/50 p-6 z-10 flex items-center justify-between backdrop-blur-md">
             <h2 id="drawer-title" className="text-xl font-semibold text-gray-900 dark:text-white">
               {title}
             </h2>

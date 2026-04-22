@@ -18,11 +18,13 @@ export function EmptyState({
   className
 }: EmptyStateProps) {
   return (
-    <div className={cn('p-12 text-center', className)}>
+    <div className={cn('p-12 text-center animate-fade-in-up', className)}>
       {icon ? (
-        <div className="flex justify-center mb-4">{icon}</div>
+        <div className="flex justify-center mb-4 animate-scale-in" style={{ animationDelay: '0.1s' }}>
+          {icon}
+        </div>
       ) : (
-        <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+        <AlertCircle className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4 animate-scale-in" style={{ animationDelay: '0.1s' }} />
       )}
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
         {message}
@@ -32,7 +34,11 @@ export function EmptyState({
           {description}
         </p>
       )}
-      {action && <div className="flex justify-center">{action}</div>}
+      {action && (
+        <div className="flex justify-center animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+          {action}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { CreatePropertyModal } from './CreatePropertyModal';
-import { PageHeader, Card, CardBody, EmptyState, Spinner, Button } from '../ui';
+import { PageHeader, Card, CardBody, EmptyState, Spinner, Button, AnimatedContainer } from '../ui';
 
 interface Property {
   id: string;
@@ -89,10 +89,11 @@ export function CorePropertiesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AnimatedContainer animation="fade-in-up" className="space-y-6">
       <PageHeader
         title="Properties"
         subtitle="Manage your property portfolio"
+        variant="gradient"
         actions={
           <Button
             onClick={() => {
@@ -137,13 +138,16 @@ export function CorePropertiesPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {properties.map((property) => (
-            <Card
-              key={property.id}
-              onClick={() => navigate(`/core/properties/${property.id}/units`)}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-            >
+        <AnimatedContainer animation="fade-in-up" stagger={true} staggerDelay={100}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {properties.map((property) => (
+              <Card
+                key={property.id}
+                variant="glass"
+                hover
+                onClick={() => navigate(`/core/properties/${property.id}/units`)}
+                className="cursor-pointer"
+              >
               <CardBody>
                 <div className="flex justify-between items-start mb-4">
                   <Building2 className="w-8 h-8 text-gray-600 dark:text-gray-400" />
@@ -186,8 +190,9 @@ export function CorePropertiesPage() {
                 )}
               </CardBody>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        </AnimatedContainer>
       )}
 
       {showCreateModal && (
@@ -204,7 +209,7 @@ export function CorePropertiesPage() {
           }}
         />
       )}
-    </div>
+    </AnimatedContainer>
   );
 }
 

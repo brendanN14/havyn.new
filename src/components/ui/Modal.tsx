@@ -44,17 +44,26 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div 
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center p-4',
+        'backdrop-blur-sm bg-black/40 dark:bg-black/60',
+        'animate-fade-in'
+      )}
+      onClick={onClose}
+    >
       <div
         className={cn(
-          'bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full flex flex-col max-h-[90vh]',
+          'glass-strong dark:glass-dark-strong',
+          'rounded-xl shadow-glass-lg w-full flex flex-col max-h-[90vh]',
+          'animate-scale-in',
           sizeStyles[size],
           className
         )}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center p-6 border-b border-white/20 dark:border-gray-700/50">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h3>
             <Button
               variant="icon"
@@ -68,7 +77,7 @@ export function Modal({
         )}
         <div className="overflow-y-auto flex-1 p-6">{children}</div>
         {footer && (
-          <div className="p-6 border-t border-gray-200 dark:border-gray-700">{footer}</div>
+          <div className="p-6 border-t border-white/20 dark:border-gray-700/50">{footer}</div>
         )}
       </div>
     </div>

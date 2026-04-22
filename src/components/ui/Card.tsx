@@ -3,13 +3,29 @@ import { cn } from '../../utils/cn';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
+  variant?: 'default' | 'glass' | 'gradient';
+  hover?: boolean;
 }
 
-export function Card({ className, children, ...props }: CardProps) {
+export function Card({ variant = 'default', hover = false, className, children, ...props }: CardProps) {
+  const getVariantClasses = () => {
+    switch (variant) {
+      case 'glass':
+        return 'glass dark:glass-dark shadow-glass-sm';
+      case 'gradient':
+        return 'bg-gradient-havyn-subtle dark:bg-gradient-havyn-dark border-havyn-primary/20';
+      case 'default':
+      default:
+        return 'bg-white dark:bg-gray-800 shadow-soft border border-gray-200 dark:border-gray-700';
+    }
+  };
+
   return (
     <div
       className={cn(
-        'bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700',
+        'rounded-lg transition-all duration-300',
+        getVariantClasses(),
+        hover && 'hover:shadow-soft-lg hover:scale-[1.02]',
         className
       )}
       {...props}

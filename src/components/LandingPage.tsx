@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { 
   Brain, 
@@ -13,9 +13,13 @@ import {
   X,
   Calendar
 } from 'lucide-react';
+import { Header } from './ui/header-1';
+import { HeroSection, LogosSection } from './ui/hero-1';
+import { Button } from './ui/button-shadcn';
 
 export function LandingPage() {
   const { isDarkMode, toggleDarkMode } = useTheme();
+  const navigate = useNavigate();
   const [showDemoForm, setShowDemoForm] = React.useState(false);
   const [formData, setFormData] = React.useState({
     firstName: '',
@@ -23,13 +27,18 @@ export function LandingPage() {
     email: '',
     phone: '',
     company: '',
-    propertyType: ''
+    propertyType: '',
+    smsOptIn: false
   });
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitSuccess, setSubmitSuccess] = React.useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+    const { name } = e.target;
+    const value =
+      e.target instanceof HTMLInputElement && e.target.type === 'checkbox'
+        ? e.target.checked
+        : e.target.value;
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -65,6 +74,7 @@ export function LandingPage() {
           phone: formData.phone,
           company: formData.company,
           propertyType: formData.propertyType,
+          smsOptIn: formData.smsOptIn,
           message: `Demo request from ${formData.firstName} ${formData.lastName} at ${formData.company}. Property type: ${formData.propertyType}. Phone: ${formData.phone}.`
         })
       });
@@ -92,85 +102,19 @@ export function LandingPage() {
         email: '',
         phone: '',
         company: '',
-        propertyType: ''
+        propertyType: '',
+        smsOptIn: false
       });
     }, 3000);
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors">
-      {/* Sticky Header */}
-      <header className="fixed top-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-50 border-b border-gray-100 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center">
-              <img src="/havyn-icon.svg" alt="Havyn" className="h-24 w-auto" />
-            </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={toggleDarkMode}
-                className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-              <div className="flex items-center gap-3">
-                <Link
-                  to="/login"
-                  className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-4 py-2 text-sm font-medium transition-colors"
-                >
-                  <Users className="w-4 h-4" />
-                  Owner Log In
-                </Link>
-                <Link
-                  to="/tenant-login"
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                >
-                  <Home className="w-4 h-4" />
-                  Tenant Log In
-                </Link>
-              </div>
-              <a
-                onClick={() => setShowDemoForm(true)}
-                className="bg-havyn-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-havyn-dark transition-colors"
-              >
-                Book a Free Demo
-              </a>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="pt-32 pb-24 px-4">
-        <div className="max-w-7xl mx-auto text-center">
-          <img src="/havyn-icon.svg" alt="Havyn" className="h-32 mx-auto mb-8" />
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
-            Smarter Insights,
-            <br />
-            Faster Decisions
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
-            Transform your property management with AI-powered tenant insights. 
-            Make data-driven decisions and optimize your rental portfolio.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              onClick={() => setShowDemoForm(true)}
-              className="bg-havyn-primary text-white px-8 py-4 rounded-lg text-lg font-medium hover:bg-havyn-dark transition-colors inline-flex items-center justify-center gap-2"
-            >
-              Book a Free Demo
-              <ArrowRight className="w-5 h-5" />
-            </a>
-            <a
-              href="#how-it-works"
-              className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-8 py-4 rounded-lg text-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors inline-flex items-center justify-center gap-2"
-            >
-              See How It Works
-              <ChevronRight className="w-5 h-5" />
-            </a>
-          </div>
-        </div>
-      </section>
+    <div className="min-h-screen bg-background text-foreground transition-colors">
+      <Header />
+      
+      <main className="grow">
+        <HeroSection onBookDemo={() => setShowDemoForm(true)} />
+        <LogosSection />
 
       {/* Login Options Section */}
       <section className="py-16 bg-gray-50 dark:bg-gray-800 transition-colors">
@@ -506,6 +450,23 @@ export function LandingPage() {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-havyn-primary focus:border-havyn-primary"
                       placeholder="(555) 123-4567"
                     />
+                    <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-600 dark:bg-gray-700/40 dark:text-gray-300">
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="smsOptIn"
+                          required
+                          checked={formData.smsOptIn}
+                          onChange={handleInputChange}
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-havyn-primary focus:ring-havyn-primary"
+                        />
+                        <span>
+                          I agree to receive SMS updates from Havyn about my demo request and verification.
+                          Message frequency varies. Message and data rates may apply.
+                          Reply STOP to unsubscribe or HELP for help.
+                        </span>
+                      </label>
+                    </div>
                   </div>
 
                   <div>
@@ -576,6 +537,7 @@ export function LandingPage() {
           </div>
         </div>
       )}
+      </main>
     </div>
   );
 }

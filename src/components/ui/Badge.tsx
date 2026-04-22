@@ -23,20 +23,20 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 const variantStyles: Record<BadgeVariant, string> = {
   // Unit status
   'unit-vacant': 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
-  'unit-occupied': 'bg-status-success-bg dark:bg-status-success-bg-dark/30 text-status-success-text dark:text-status-success-text-dark',
-  'unit-make-ready': 'bg-status-warning-bg dark:bg-status-warning-bg-dark/30 text-status-warning-text dark:text-status-warning-text-dark',
-  'unit-reserved': 'bg-status-info-bg dark:bg-status-info-bg-dark/30 text-status-info-text dark:text-status-info-text-dark',
+  'unit-occupied': 'bg-gradient-to-r from-status-success-bg to-status-success-bg/80 dark:from-status-success-bg-dark/40 dark:to-status-success-bg-dark/20 text-status-success-text dark:text-status-success-text-dark border border-status-success-text/20',
+  'unit-make-ready': 'bg-gradient-to-r from-status-warning-bg to-status-warning-bg/80 dark:from-status-warning-bg-dark/40 dark:to-status-warning-bg-dark/20 text-status-warning-text dark:text-status-warning-text-dark border border-status-warning-text/20',
+  'unit-reserved': 'bg-gradient-to-r from-status-info-bg to-status-info-bg/80 dark:from-status-info-bg-dark/40 dark:to-status-info-bg-dark/20 text-status-info-text dark:text-status-info-text-dark border border-status-info-text/20',
   
   // Delinquency category
-  'delinquency-current': 'bg-status-success-bg dark:bg-status-success-bg-dark/30 text-status-success-text dark:text-status-success-text-dark',
-  'delinquency-at-risk': 'bg-status-warning-bg dark:bg-status-warning-bg-dark/30 text-status-warning-text dark:text-status-warning-text-dark',
-  'delinquency-delinquent': 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400',
-  'delinquency-severe': 'bg-status-danger-bg dark:bg-status-danger-bg-dark/30 text-status-danger-text dark:text-status-danger-text-dark',
+  'delinquency-current': 'bg-gradient-to-r from-status-success-bg to-status-success-bg/80 dark:from-status-success-bg-dark/40 dark:to-status-success-bg-dark/20 text-status-success-text dark:text-status-success-text-dark border border-status-success-text/20',
+  'delinquency-at-risk': 'bg-gradient-to-r from-status-warning-bg to-status-warning-bg/80 dark:from-status-warning-bg-dark/40 dark:to-status-warning-bg-dark/20 text-status-warning-text dark:text-status-warning-text-dark border border-status-warning-text/20',
+  'delinquency-delinquent': 'bg-gradient-to-r from-orange-100 to-orange-50 dark:from-orange-900/40 dark:to-orange-900/20 text-orange-800 dark:text-orange-400 border border-orange-300/30 dark:border-orange-700/30',
+  'delinquency-severe': 'bg-gradient-to-r from-status-danger-bg to-status-danger-bg/80 dark:from-status-danger-bg-dark/40 dark:to-status-danger-bg-dark/20 text-status-danger-text dark:text-status-danger-text-dark border border-status-danger-text/20',
   
   // Lease status
-  'lease-active': 'bg-status-success-bg dark:bg-status-success-bg-dark/30 text-status-success-text dark:text-status-success-text-dark',
+  'lease-active': 'bg-gradient-to-r from-status-success-bg to-status-success-bg/80 dark:from-status-success-bg-dark/40 dark:to-status-success-bg-dark/20 text-status-success-text dark:text-status-success-text-dark border border-status-success-text/20',
   'lease-expired': 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300',
-  'lease-terminated': 'bg-status-danger-bg dark:bg-status-danger-bg-dark/30 text-status-danger-text dark:text-status-danger-text-dark',
+  'lease-terminated': 'bg-gradient-to-r from-status-danger-bg to-status-danger-bg/80 dark:from-status-danger-bg-dark/40 dark:to-status-danger-bg-dark/20 text-status-danger-text dark:text-status-danger-text-dark border border-status-danger-text/20',
   
   // Neutral
   'neutral': 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'

@@ -5,7 +5,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { LeaseDetailModal } from './LeaseDetailModal';
 import { getAmountOwed, isLeaseDelinquent } from '../../utils/financialSummary';
-import { PageHeader, Card, CardHeader, CardBody, DataTable, EmptyState, Spinner, Button, Badge, getDelinquencyBadgeVariant, getUnitStatusBadgeVariant, StatCard } from '../ui';
+import { PageHeader, Card, CardHeader, CardBody, DataTable, EmptyState, Spinner, Button, Badge, getDelinquencyBadgeVariant, getUnitStatusBadgeVariant, StatCard, AnimatedContainer, GlassCard } from '../ui';
+import CardDisplay, { CardDisplayItem } from '../ui/data-card-display';
 
 interface Property {
   id: string;
@@ -543,11 +544,12 @@ export function CoreDashboard() {
   ) : null;
 
   return (
-    <div className="space-y-6">
+    <AnimatedContainer animation="fade-in-up" className="space-y-6">
       <PageHeader
         title="Today's Queue"
         subtitle="Action items requiring attention"
         actions={propertySelector}
+        variant="gradient"
       />
 
       {error && (
@@ -582,40 +584,55 @@ export function CoreDashboard() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-            <StatCard
-              label="Total Units"
-              value={stats.totalUnits}
-              icon={<Home className="w-12 h-12" />}
+          <AnimatedContainer animation="fade-in-up" delay={100}>
+            <CardDisplay
+              items={[
+                {
+                  id: 'total-units',
+                  title: 'Total Units',
+                  value: stats.totalUnits.toString(),
+                  description: 'All units in portfolio',
+                  icon: Home,
+                },
+                {
+                  id: 'vacant-units',
+                  title: 'Vacant Units',
+                  value: stats.vacantUnits.toString(),
+                  description: 'Available for lease',
+                  icon: TrendingUp,
+                },
+                {
+                  id: 'occupied-units',
+                  title: 'Occupied Units',
+                  value: stats.occupiedUnits.toString(),
+                  description: 'Currently leased',
+                  icon: Users,
+                },
+                {
+                  id: 'active-leases',
+                  title: 'Active Leases',
+                  value: stats.activeLeases.toString(),
+                  description: 'Current lease agreements',
+                  icon: Calendar,
+                },
+                {
+                  id: 'balance-due',
+                  title: 'Balance Due',
+                  value: `$${stats.totalBalanceDue >= 1000 
+                    ? (stats.totalBalanceDue / 1000).toFixed(1) + 'k'
+                    : stats.totalBalanceDue.toLocaleString()}`,
+                  description: 'Total outstanding balance',
+                  icon: AlertCircle,
+                },
+              ] as CardDisplayItem[]}
+              className="mb-6"
             />
-            <StatCard
-              label="Vacant Units"
-              value={stats.vacantUnits}
-              icon={<TrendingUp className="w-12 h-12" />}
-            />
-            <StatCard
-              label="Occupied Units"
-              value={stats.occupiedUnits}
-              icon={<Users className="w-12 h-12" />}
-            />
-            <StatCard
-              label="Active Leases"
-              value={stats.activeLeases}
-              icon={<Calendar className="w-12 h-12" />}
-            />
-            <StatCard
-              label="Balance Due"
-              value={`$${stats.totalBalanceDue >= 1000 
-                ? (stats.totalBalanceDue / 1000).toFixed(1) + 'k'
-                : stats.totalBalanceDue.toLocaleString()}`}
-              icon={<AlertCircle className="w-12 h-12" />}
-            />
-          </div>
+          </AnimatedContainer>
 
           {/* Today's Queue Sections */}
-          <div className="space-y-6">
+          <AnimatedContainer animation="fade-in-up" delay={200} className="space-y-6">
             {/* Delinquency Needing Action */}
-            <Card>
+            <Card variant="glass" hover>
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
@@ -685,7 +702,7 @@ export function CoreDashboard() {
             </Card>
 
             {/* Leases Expiring */}
-            <Card>
+            <Card variant="glass" hover>
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
@@ -753,7 +770,7 @@ export function CoreDashboard() {
             </Card>
 
             {/* Vacant/Ready Units */}
-            <Card>
+            <Card variant="glass" hover>
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
@@ -810,7 +827,7 @@ export function CoreDashboard() {
                 />
               </CardBody>
             </Card>
-          </div>
+          </AnimatedContainer>
         </>
       )}
 
@@ -828,6 +845,6 @@ export function CoreDashboard() {
           }}
         />
       )}
-    </div>
+    </AnimatedContainer>
   );
 }
